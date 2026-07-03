@@ -15,7 +15,7 @@
 </head>
 <body>
 
-  <!-- ============ SIDEBAR (collapsible, icons + labels) ============ -->
+  <!-- ============ SIDEBAR (modern hover-rail, no toggle button) ============ -->
   <aside class="sidebar" aria-label="Primary navigation">
     <div class="sidebar__brand">
       <svg class="sidebar__stamp" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -41,24 +41,31 @@
       </a>
     </nav>
 
-    <div class="sidebar__foot">
-      <button class="sidebar__toggle" type="button" aria-expanded="true" aria-label="Collapse sidebar">
-        <i class="bi bi-chevron-double-left"></i>
-        <span class="sidebar__label">Collapse</span>
-      </button>
-    </div>
+    <div class="sidebar__foot">Haven © 2026</div>
   </aside>
 
   <!-- ============ MAIN CONTENT ============ -->
   <div class="app-main">
 
+    <!-- Slim topbar: logo doubles as the home button. Swap the inline SVG for the provided logo file later. -->
     <header class="topbar">
-      <span class="topbar__crumb">Haven / Home</span>
-      <a class="btn btn--primary" href="search.html"><i class="bi bi-compass"></i> Start Searching</a>
+      <a class="topbar__home" href="index.html" aria-label="Haven home">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="24" cy="24" r="21" stroke="#C9A227" stroke-width="1.5" stroke-dasharray="3 3"/>
+          <circle cx="24" cy="24" r="15" stroke="#0F3D3E" stroke-width="1.2"/>
+          <path d="M16 26L21 31L32 18" stroke="#0F3D3E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Haven
+      </a>
+      <a class="btn btn--primary btn--sm" href="search.html"><i class="bi bi-search"></i> Start Searching</a>
     </header>
 
     <!-- ============ HERO ============ -->
     <section class="hero">
+      <span class="hero__blob hero__blob--1"></span>
+      <span class="hero__blob hero__blob--2"></span>
+      <span class="hero__blob hero__blob--3"></span>
+
       <div class="hero__content">
         <span class="hero__eyebrow">Wedding &amp; vacation venues</span>
         <h1>Find the place for your <em>moment.</em></h1>
@@ -92,7 +99,30 @@
       </svg>
     </section>
 
-    <!-- ============ SHOWCASE GRID ============ -->
+    <!-- ============ MARQUEE TICKER ============ -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee__track">
+        <span class="marquee__item">GR · SANTORINI</span>
+        <span class="marquee__item">LB · BEITEDDINE</span>
+        <span class="marquee__item">IT · TUSCANY</span>
+        <span class="marquee__item">MV · MALDIVES</span>
+        <span class="marquee__item">LB · BATROUN</span>
+        <span class="marquee__item">JP · KYOTO</span>
+        <span class="marquee__item">MA · MARRAKECH</span>
+        <span class="marquee__item">LB · BYBLOS</span>
+        <!-- duplicated for a seamless loop -->
+        <span class="marquee__item">GR · SANTORINI</span>
+        <span class="marquee__item">LB · BEITEDDINE</span>
+        <span class="marquee__item">IT · TUSCANY</span>
+        <span class="marquee__item">MV · MALDIVES</span>
+        <span class="marquee__item">LB · BATROUN</span>
+        <span class="marquee__item">JP · KYOTO</span>
+        <span class="marquee__item">MA · MARRAKECH</span>
+        <span class="marquee__item">LB · BYBLOS</span>
+      </div>
+    </div>
+
+    <!-- ============ SHOWCASE CAROUSEL ============ -->
     <section class="section" id="showcase">
       <div class="section__head">
         <div>
@@ -106,36 +136,37 @@
         </div>
       </div>
 
-      <div class="spot-grid" id="spotGrid" aria-live="polite">
-        <!-- Rendered by DestinationCatalog (js/destinations.js) -->
+      <div class="carousel">
+        <button class="carousel__arrow carousel__arrow--prev" id="spotPrev" aria-label="Previous spots"><i class="bi bi-chevron-left"></i></button>
+        <div class="carousel__viewport" id="spotViewport">
+          <div class="carousel__track" id="spotTrack" aria-live="polite">
+            <!-- Rendered by DestinationCatalog (js/destinations.js) -->
+          </div>
+        </div>
+        <button class="carousel__arrow carousel__arrow--next" id="spotNext" aria-label="Next spots"><i class="bi bi-chevron-right"></i></button>
       </div>
+      <div class="carousel__dots" id="spotDots"></div>
     </section>
 
-    <!-- ============ TESTIMONIALS ============ -->
+    <!-- ============ TESTIMONIALS CAROUSEL ============ -->
     <section class="testimonials">
-      <div class="section__head" style="max-width:1280px;margin:0 auto 2.5rem;">
+      <div class="section__head">
         <div>
           <span class="eyebrow">Word of mouth</span>
           <h2>What people say after they book</h2>
         </div>
       </div>
-      <div class="testimonial-grid">
-        <article class="testimonial-card">
-          <span class="testimonial-card__mark">&ldquo;</span>
-          <p class="quote">We looked at four different palaces before finding Beiteddine on Haven. The listing had real photos and pricing — no back-and-forth needed to know it was the one.</p>
-          <div class="testimonial-card__who">Layla &amp; Karim<span>Married at Beiteddine Palace</span></div>
-        </article>
-        <article class="testimonial-card">
-          <span class="testimonial-card__mark">&ldquo;</span>
-          <p class="quote">I used the Local filter to plan a last-minute weekend in Faraya. Booked a lodge in under ten minutes, no group chat required.</p>
-          <div class="testimonial-card__who">Sarah T.<span>Solo traveler</span></div>
-        </article>
-        <article class="testimonial-card">
-          <span class="testimonial-card__mark">&ldquo;</span>
-          <p class="quote">As a planner I source venues for a living. Haven is the first place I check now — the budget filter alone saves me an hour per client.</p>
-          <div class="testimonial-card__who">Nadine R.<span>Wedding planner</span></div>
-        </article>
+
+      <div class="carousel carousel--dark testimonial-carousel">
+        <button class="carousel__arrow carousel__arrow--prev" id="testiPrev" aria-label="Previous testimonial"><i class="bi bi-chevron-left"></i></button>
+        <div class="carousel__viewport" id="testiViewport">
+          <div class="carousel__track" id="testiTrack" aria-live="polite">
+            <!-- Rendered by TestimonialCarousel (js/testimonials.js) -->
+          </div>
+        </div>
+        <button class="carousel__arrow carousel__arrow--next" id="testiNext" aria-label="Next testimonial"><i class="bi bi-chevron-right"></i></button>
       </div>
+      <div class="carousel__dots" id="testiDots"></div>
     </section>
 
     <!-- ============ FOOTER ============ -->
@@ -177,6 +208,9 @@
   </div>
 
   <script src="js/sidebar.js"></script>
+  <script src="js/hero.js"></script>
+  <script src="js/carousel.js"></script>
   <script src="js/destinations.js"></script>
+  <script src="js/testimonials.js"></script>
 </body>
 </html>

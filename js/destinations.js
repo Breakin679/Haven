@@ -1,6 +1,6 @@
 /**
  * Destination
- * A single curated spot (venue/destination) shown on the home page grid.
+ * A single curated spot (venue/destination) shown in the home page carousel.
  */
 class Destination {
   constructor({ id, name, country, code, region, categories, priceTier, rating, blurb, seed }) {
@@ -28,38 +28,47 @@ class Destination {
 
   toCardHTML() {
     return `
-      <article class="spot-card" data-region="${this.region}" data-id="${this.id}">
-        <div class="spot-card__media" style="background-image:url('${this.imageUrl}')">
-          <span class="spot-card__badge ${this.badgeClass}">${this.badgeLabel}</span>
-          <span class="spot-card__region">${this.region}</span>
-        </div>
-        <div class="spot-card__perforation"></div>
-        <div class="spot-card__body">
-          <h3 class="spot-card__title">${this.name}</h3>
-          <div class="spot-card__loc">${this.code} · ${this.country}</div>
-          <p class="spot-card__blurb">${this.blurb}</p>
-          <div class="spot-card__foot">
-            <span class="spot-card__price">${this.priceTier} avg / event</span>
-            <span class="spot-card__rating">★ ${this.rating.toFixed(1)}</span>
+      <div class="spot-carousel__item">
+        <article class="spot-card" data-region="${this.region}" data-id="${this.id}">
+          <div class="spot-card__media" style="background-image:url('${this.imageUrl}')">
+            <span class="spot-card__badge ${this.badgeClass}">${this.badgeLabel}</span>
+            <span class="spot-card__region">${this.region}</span>
           </div>
-        </div>
-      </article>
+          <div class="spot-card__perforation"></div>
+          <div class="spot-card__body">
+            <h3 class="spot-card__title">${this.name}</h3>
+            <div class="spot-card__loc">${this.code} · ${this.country}</div>
+            <p class="spot-card__blurb">${this.blurb}</p>
+            <div class="spot-card__foot">
+              <span class="spot-card__price">${this.priceTier} avg / event</span>
+              <span class="spot-card__rating">★ ${this.rating.toFixed(1)}</span>
+            </div>
+          </div>
+        </article>
+      </div>
     `;
   }
 }
 
 /**
  * DestinationCatalog
- * Owns the full curated list and renders/filters it into the home page grid.
+ * Owns the full curated list and drives the infinite spot carousel,
+ * rebuilding it whenever the Local / Global toggle changes.
  */
 class DestinationCatalog {
-  constructor(gridSelector, toggleSelector) {
-    this.grid = document.querySelector(gridSelector);
+  constructor({ viewportSelector, trackSelector, dotsSelector, prevSelector, nextSelector, toggleSelector }) {
+    this.viewport = document.querySelector(viewportSelector);
+    this.track = document.querySelector(trackSelector);
+    this.dots = document.querySelector(dotsSelector);
+    this.prevBtn = document.querySelector(prevSelector);
+    this.nextBtn = document.querySelector(nextSelector);
     this.toggleGroup = document.querySelector(toggleSelector);
+
     this.activeFilter = 'all';
     this.spots = DestinationCatalog.buildData();
+    this.carousel = null;
 
-    if (this.grid) this.render();
+    if (this.track) this.renderCarousel();
     if (this.toggleGroup) this.bindToggle();
   }
 
@@ -98,7 +107,7 @@ class DestinationCatalog {
         this.toggleGroup.querySelectorAll('.toggle-group__btn').forEach((b) => b.classList.remove('is-active'));
         btn.classList.add('is-active');
         this.activeFilter = btn.dataset.filter;
-        this.render();
+        this.renderCarousel();
       });
     });
   }
@@ -108,14 +117,32 @@ class DestinationCatalog {
     return this.spots.filter((s) => s.region === this.activeFilter);
   }
 
-  render() {
+  renderCarousel() {
+    if (this.carousel) this.carousel.stopAutoplay();
+
     const spots = this.filteredSpots;
-    this.grid.innerHTML = spots.length
+    this.track.innerHTML = spots.length
       ? spots.map((s) => s.toCardHTML()).join('')
-      : `<p class="spot-grid__empty">No spots match this view yet — check back soon.</p>`;
+      : `<div class="spot-carousel__item"><p>No spots match this view yet — check back soon.</p></div>`;
+
+    this.carousel = new Carousel({
+      viewport: this.viewport,
+      track: this.track,
+      dotsContainer: this.dots,
+      prevBtn: this.prevBtn,
+      nextBtn: this.nextBtn,
+      autoplayMs: 4500,
+    });
   }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  new DestinationCatalog('#spotGrid', '#regionToggle');
+  new DestinationCatalog({
+    viewportSelector: '#spotViewport',
+    trackSelector: '#spotTrack',
+    dotsSelector: '#spotDots',
+    prevSelector: '#spotPrev',
+    nextSelector: '#spotNext',
+    toggleSelector: '#regionToggle',
+  });
 });
