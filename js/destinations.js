@@ -29,23 +29,30 @@ class Destination {
   toCardHTML() {
     return `
       <div class="spot-carousel__item">
-        <article class="spot-card" data-region="${this.region}" data-id="${this.id}">
-          <div class="spot-card__media" style="background-image:url('${this.imageUrl}')">
-            <span class="spot-card__badge ${this.badgeClass}">${this.badgeLabel}</span>
-            <span class="spot-card__region">${this.region}</span>
-          </div>
-          <div class="spot-card__perforation"></div>
-          <div class="spot-card__body">
-            <h3 class="spot-card__title">${this.name}</h3>
-            <div class="spot-card__loc">${this.code} · ${this.country}</div>
-            <p class="spot-card__blurb">${this.blurb}</p>
-            <div class="spot-card__foot">
-              <span class="spot-card__price">${this.priceTier} avg / event</span>
-              <span class="spot-card__rating">★ ${this.rating.toFixed(1)}</span>
-            </div>
-          </div>
-        </article>
+        ${this.toGridHTML()}
       </div>
+    `;
+  }
+
+  /** Bare card markup, for use inside a plain CSS grid (e.g. the search page). */
+  toGridHTML() {
+    return `
+      <article class="spot-card" data-region="${this.region}" data-id="${this.id}">
+        <div class="spot-card__media" style="background-image:url('${this.imageUrl}')">
+          <span class="spot-card__badge ${this.badgeClass}">${this.badgeLabel}</span>
+          <span class="spot-card__region">${this.region}</span>
+        </div>
+        <div class="spot-card__perforation"></div>
+        <div class="spot-card__body">
+          <h3 class="spot-card__title">${this.name}</h3>
+          <div class="spot-card__loc">${this.code} · ${this.country}</div>
+          <p class="spot-card__blurb">${this.blurb}</p>
+          <div class="spot-card__foot">
+            <span class="spot-card__price">${this.priceTier} avg / event</span>
+            <span class="spot-card__rating">★ ${this.rating.toFixed(1)}</span>
+          </div>
+        </div>
+      </article>
     `;
   }
 }
@@ -95,7 +102,6 @@ class DestinationCatalog {
       { name: 'Le Marais Courtyard', country: 'Paris, France', code: 'FR · PAR', region: 'global', categories: ['wedding'], priceTier: '$$$', rating: 4.6, seed: 'paris', blurb: 'An 18th-century hôtel particulier courtyard tucked away in central Paris.' },
       { name: 'Kyoto Temple Gardens', country: 'Japan', code: 'JP · KYO', region: 'global', categories: ['vacation'], priceTier: '$$', rating: 4.7, seed: 'kyoto', blurb: 'Moss gardens and machiya guesthouses within walking distance of the Philosopher\u2019s Path.' },
       { name: 'Marrakech Riad Courtyard', country: 'Morocco', code: 'MA · MRK', region: 'global', categories: ['wedding', 'vacation'], priceTier: '$$', rating: 4.7, seed: 'marrakech', blurb: 'A restored riad with a central fountain courtyard, hidden behind the medina walls.' },
-      { name: 'Amalfi Coast Terrace', country: 'Italy', code: 'IT · AML', region: 'global', categories: ['wedding'], priceTier: '$$$', rating: 4.8, seed: 'amalfi', blurb: 'Lemon-grove terraces cut into the cliffs above Positano, built for cocktail-hour views.' },
     ];
 
     return raw.map((r, i) => new Destination({ id: i + 1, ...r }));
