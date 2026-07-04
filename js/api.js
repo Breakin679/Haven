@@ -1,20 +1,28 @@
 /**
- * CityExplorer
- * Talks to the API Ninjas "City" endpoint (the same X-Api-Key pattern
- * covered in class) so people can pull up live facts — population,
- * coordinates, capital status — for literally any city on earth, not just
- * our curated list. Handles loading / error / empty states, and paginates
- * the returned matches on the client (API Ninjas can return several cities
- * for an ambiguous name, e.g. "Paris" -> France, Texas, Kentucky...).
+ * AmadeusExplorer
+ * Live "Points of Interest" lookup via the Amadeus Self-Service API.
  *
- * NOTE FOR SUBMISSION: register a free key at https://api-ninjas.com and
- * paste it below. Until then the panel runs on labeled sample data so the
- * UI can still be reviewed offline.
+ * Why Amadeus over a plain city-stats API: its POI categories — SIGHTS,
+ * HISTORICAL, NIGHTLIFE, BEACH_PARK, RESTAURANT, SHOPPING — map directly
+ * onto the same Type/Atmosphere language the rest of this page filters by,
+ * instead of returning population figures that have nothing to do with
+ * "finding a spot."
+ *
+ * Flow: city name -> OAuth2 token -> geocode the city -> fetch nearby POIs
+ * -> filter by category (chips) + paginate on the client.
+ *
+ * NOTE FOR SUBMISSION: register a free Self-Service key at
+ * https://developers.amadeus.com, then paste your Client ID/Secret below.
+ * Until then this panel runs on labeled sample data so the UI can still be
+ * reviewed offline (this sandbox also can't reach api.amadeus.com to test
+ * the live calls directly).
  */
-const API_NINJAS_KEY = 'YOUR_API_NINJAS_KEY'; // <-- replace with your own key
+const AMADEUS_CLIENT_ID = 'YOUR_AMADEUS_CLIENT_ID';         // <-- replace with your own
+const AMADEUS_CLIENT_SECRET = 'YOUR_AMADEUS_CLIENT_SECRET'; // <-- replace with your own
+const AMADEUS_BASE = 'https://test.api.amadeus.com';
 
-class CityExplorer {
-  constructor({ formSelector, inputSelector, resultsSelector, paginationSelector, hintSelector }) {
+class AmadeusExplorer {
+  constructor({ formSelector, inputSelector, resultsSelector, paginationSelector, hintSelector, chipsSelector }) {
     this.form = document.querySelector(formSelector);
     if (!this.form) return;
 
@@ -22,10 +30,14 @@ class CityExplorer {
     this.results = document.querySelector(resultsSelector);
     this.pagination = document.querySelector(paginationSelector);
     this.hint = document.querySelector(hintSelector);
+    this.chipsBar = document.querySelector(chipsSelector);
 
-    this.pageSize = 3;
+    this.pageSize = 4;
     this.page = 0;
-    this.cities = [];
+    this.pois = [];
+    this.activeCategory = 'all';
+    this.token = null;
+    this.tokenExpiry = 0;
 
     this.form.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -36,24 +48,34 @@ class CityExplorer {
     this.renderIdle();
   }
 
+  hasCredentials() {
+    return AMADEUS_CLIENT_ID !== 'YOUR_AMADEUS_CLIENT_ID' && AMADEUS_CLIENT_SECRET !== 'YOUR_AMADEUS_CLIENT_SECRET';
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* State renders                                                     */
+  /* ---------------------------------------------------------------- */
+
   renderIdle() {
     this.results.innerHTML = `
       <div class="state-message">
         <i class="bi bi-globe-americas"></i>
-        Search a city above to pull its live population, coordinates, and capital status.
+        Search a city above to pull nearby points of interest — sights, nightlife, beaches, and more.
       </div>
     `;
     this.pagination.innerHTML = '';
+    if (this.chipsBar) this.chipsBar.innerHTML = '';
   }
 
   renderLoading() {
     this.results.innerHTML = `
       <div class="state-message">
         <div class="spinner"></div>
-        Fetching live data…
+        Fetching live points of interest…
       </div>
     `;
     this.pagination.innerHTML = '';
+    if (this.chipsBar) this.chipsBar.innerHTML = '';
   }
 
   renderError(message) {
@@ -70,70 +92,137 @@ class CityExplorer {
     this.results.innerHTML = `
       <div class="state-message">
         <i class="bi bi-search"></i>
-        No cities matched "${query}" — check the spelling and try again.
+        No points of interest found for "${query}" — try a bigger nearby city.
       </div>
     `;
     this.pagination.innerHTML = '';
   }
 
+  /* ---------------------------------------------------------------- */
+  /* Amadeus calls                                                     */
+  /* ---------------------------------------------------------------- */
+
+  async getToken() {
+    if (this.token && Date.now() < this.tokenExpiry) return this.token;
+
+    const body = new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: AMADEUS_CLIENT_ID,
+      client_secret: AMADEUS_CLIENT_SECRET,
+    });
+
+    const res = await fetch(`${AMADEUS_BASE}/v1/security/oauth2/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+
+    if (!res.ok) throw new Error('That Amadeus key was rejected — double-check it in js/api.js.');
+
+    const data = await res.json();
+    this.token = data.access_token;
+    this.tokenExpiry = Date.now() + (data.expires_in - 30) * 1000;
+    return this.token;
+  }
+
+  async geocodeCity(name) {
+    const token = await this.getToken();
+    const url = `${AMADEUS_BASE}/v1/reference-data/locations?keyword=${encodeURIComponent(name)}&subType=CITY`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error('The live data service is unavailable right now. Please try again shortly.');
+    const data = await res.json();
+    return data.data?.[0] || null;
+  }
+
+  async fetchPOIs(latitude, longitude) {
+    const token = await this.getToken();
+    const url = `${AMADEUS_BASE}/v1/reference-data/locations/pois?latitude=${latitude}&longitude=${longitude}&radius=20`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error('The live data service is unavailable right now. Please try again shortly.');
+    const data = await res.json();
+    return data.data || [];
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Orchestration                                                     */
+  /* ---------------------------------------------------------------- */
+
   async search(query) {
     this.renderLoading();
 
-    if (API_NINJAS_KEY === 'YOUR_API_NINJAS_KEY') {
-      // No key configured yet — fall back to clearly-labeled sample data.
+    if (!this.hasCredentials()) {
       await this.wait(500);
-      this.cities = CityExplorer.sampleData(query);
-      if (this.hint) this.hint.textContent = 'Showing sample data — add your API Ninjas key in js/api.js for live results.';
+      this.pois = AmadeusExplorer.sampleData(query);
+      if (this.hint) this.hint.textContent = 'Showing sample data — add your Amadeus keys in js/api.js for live results.';
       this.page = 0;
-      this.cities.length ? this.renderPage() : this.renderEmpty(query);
+      this.activeCategory = 'all';
+      this.pois.length ? this.finishLoad() : this.renderEmpty(query);
       return;
     }
 
     try {
-      const response = await fetch(`https://api.api-ninjas.com/v1/city?name=${encodeURIComponent(query)}`, {
-        headers: { 'X-Api-Key': API_NINJAS_KEY },
-      });
+      const city = await this.geocodeCity(query);
+      if (!city) return this.renderEmpty(query);
 
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          throw new Error('That API key was rejected — double-check it in js/api.js.');
-        }
-        if (response.status === 429) {
-          throw new Error('Rate limit reached — wait a moment and try again.');
-        }
-        throw new Error('The live data service is unavailable right now. Please try again shortly.');
-      }
-
-      const data = await response.json();
-      this.cities = data;
+      const pois = await this.fetchPOIs(city.geoCode.latitude, city.geoCode.longitude);
+      this.pois = pois;
       this.page = 0;
-      data.length ? this.renderPage() : this.renderEmpty(query);
+      this.activeCategory = 'all';
+      pois.length ? this.finishLoad() : this.renderEmpty(query);
     } catch (err) {
       this.renderError(err.message || 'Something went wrong reaching the live data service.');
     }
   }
 
-  renderPage() {
-    const start = this.page * this.pageSize;
-    const pageItems = this.cities.slice(start, start + this.pageSize);
-
-    this.results.innerHTML = pageItems.map((c) => `
-      <div class="city-card">
-        ${c.is_capital ? '<span class="city-card__capital">Capital</span>' : ''}
-        <h4 class="city-card__name">${c.name}</h4>
-        <div class="city-card__country">${c.country ? c.country.toUpperCase() : ''}</div>
-        <div class="city-card__stats">
-          <span>Population: ${c.population ? c.population.toLocaleString() : 'n/a'}</span>
-          <span>Lat / Lng: ${c.latitude?.toFixed(2)}, ${c.longitude?.toFixed(2)}</span>
-        </div>
-      </div>
-    `).join('');
-
-    this.renderPagination();
+  finishLoad() {
+    this.renderCategoryChips();
+    this.renderPage();
   }
 
-  renderPagination() {
-    const totalPages = Math.ceil(this.cities.length / this.pageSize);
+  renderCategoryChips() {
+    if (!this.chipsBar) return;
+    const categories = ['all', ...new Set(this.pois.map((p) => p.category).filter(Boolean))];
+    this.chipsBar.innerHTML = categories.map((cat) => `
+      <button class="chip${cat === this.activeCategory ? ' is-active' : ''}" type="button" data-category="${cat}">
+        ${cat === 'all' ? 'All' : cat.replace('_', ' ')}
+      </button>
+    `).join('');
+
+    this.chipsBar.querySelectorAll('.chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        this.activeCategory = chip.dataset.category;
+        this.page = 0;
+        this.chipsBar.querySelectorAll('.chip').forEach((c) => c.classList.remove('is-active'));
+        chip.classList.add('is-active');
+        this.renderPage();
+      });
+    });
+  }
+
+  get filteredPOIs() {
+    return this.activeCategory === 'all' ? this.pois : this.pois.filter((p) => p.category === this.activeCategory);
+  }
+
+  renderPage() {
+    const filtered = this.filteredPOIs;
+    const start = this.page * this.pageSize;
+    const pageItems = filtered.slice(start, start + this.pageSize);
+
+    this.results.innerHTML = pageItems.length
+      ? pageItems.map((p) => `
+        <div class="poi-card">
+          <span class="poi-card__category">${(p.category || 'spot').replace('_', ' ')}</span>
+          <h4 class="poi-card__name">${p.name}</h4>
+          <div class="poi-card__meta">${p.tags?.slice(0, 3).join(' · ') || 'Nearby point of interest'}</div>
+        </div>
+      `).join('')
+      : `<div class="state-message"><i class="bi bi-filter"></i>No results in this category — try "All".</div>`;
+
+    this.renderPagination(filtered.length);
+  }
+
+  renderPagination(total) {
+    const totalPages = Math.ceil(total / this.pageSize);
     if (totalPages <= 1) { this.pagination.innerHTML = ''; return; }
 
     this.pagination.innerHTML = `
@@ -148,28 +237,44 @@ class CityExplorer {
 
   wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
-  /** Small labeled sample set so the panel is demonstrable without a live key. */
+  /** Small labeled sample set so the panel is demonstrable without live keys. */
   static sampleData(query) {
-    const all = [
-      { name: 'Beirut', country: 'lb', population: 2424425, latitude: 33.8938, longitude: 35.5018, is_capital: true },
-      { name: 'Santorini', country: 'gr', population: 15550, latitude: 36.3932, longitude: 25.4615, is_capital: false },
-      { name: 'Paris', country: 'fr', population: 2140526, latitude: 48.8566, longitude: 2.3522, is_capital: true },
-      { name: 'Paris', country: 'us', population: 25171, latitude: 33.6609, longitude: -95.5555, is_capital: false },
-      { name: 'Kyoto', country: 'jp', population: 1475183, latitude: 35.0116, longitude: 135.7681, is_capital: false },
-      { name: 'Marrakech', country: 'ma', population: 928850, latitude: 31.6295, longitude: -7.9811, is_capital: false },
-      { name: 'Ubud', country: 'id', population: 74800, latitude: -8.5069, longitude: 115.2625, is_capital: false },
-    ];
-    const q = query.toLowerCase();
-    return all.filter((c) => c.name.toLowerCase().includes(q));
+    const byCity = {
+      beirut: [
+        { name: 'Raouche Rocks', category: 'SIGHTS', tags: ['landmark', 'coastline'] },
+        { name: 'Gemmayze Nightlife Strip', category: 'NIGHTLIFE', tags: ['bars', 'live music'] },
+        { name: 'National Museum of Beirut', category: 'HISTORICAL', tags: ['museum', 'heritage'] },
+        { name: 'Zaitunay Bay', category: 'RESTAURANT', tags: ['seafront dining'] },
+      ],
+      santorini: [
+        { name: 'Oia Sunset Point', category: 'SIGHTS', tags: ['caldera', 'sunset'] },
+        { name: 'Perissa Black Sand Beach', category: 'BEACH_PARK', tags: ['beach', 'swimming'] },
+        { name: 'Akrotiri Archaeological Site', category: 'HISTORICAL', tags: ['ruins', 'bronze age'] },
+      ],
+      kyoto: [
+        { name: 'Fushimi Inari Shrine', category: 'HISTORICAL', tags: ['shrine', 'heritage'] },
+        { name: 'Gion Nightlife District', category: 'NIGHTLIFE', tags: ['geisha district'] },
+        { name: 'Nishiki Market', category: 'SHOPPING', tags: ['street food', 'market'] },
+      ],
+      marrakech: [
+        { name: 'Jemaa el-Fnaa', category: 'SIGHTS', tags: ['square', 'street performers'] },
+        { name: 'Bahia Palace', category: 'HISTORICAL', tags: ['palace', 'architecture'] },
+        { name: 'Souk Semmarine', category: 'SHOPPING', tags: ['market', 'crafts'] },
+      ],
+    };
+
+    const key = Object.keys(byCity).find((c) => c.includes(query.toLowerCase()) || query.toLowerCase().includes(c));
+    return key ? byCity[key] : [];
   }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  new CityExplorer({
+  new AmadeusExplorer({
     formSelector: '#apiForm',
     inputSelector: '#apiInput',
     resultsSelector: '#apiResults',
     paginationSelector: '#apiPagination',
     hintSelector: '#apiHint',
+    chipsSelector: '#apiChips',
   });
 });

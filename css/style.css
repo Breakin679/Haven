@@ -683,7 +683,21 @@ button { font-family: inherit; }
 
 .spot-card__badge--wedding { background: var(--rust); }
 .spot-card__badge--vacation { background: var(--sage); }
+.spot-card__badge--honeymoon { background: var(--gold); color: var(--ink-dark); }
 .spot-card__badge--both { background: var(--gold); color: var(--ink-dark); }
+
+.spot-card__meta {
+  display: flex;
+  gap: 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: #6b7168;
+  margin-bottom: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.spot-card__meta i { color: var(--gold); margin-right: 0.25rem; }
 
 .spot-card__region {
   position: absolute; bottom: 0.75rem; right: 0.75rem; z-index: 2;
@@ -889,7 +903,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
    ========================================================= */
 
 .page-head {
-  padding: 3rem 2.5rem 0;
+  padding: 2.75rem 2.5rem 0;
   max-width: 1280px;
   margin: 0 auto;
 }
@@ -905,33 +919,32 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .page-head p { max-width: 56ch; color: #4b514a; margin: 0; }
 
 /* =========================================================
-   FILTER BAR — toggle + dropdowns + search, all in one strip
+   SEARCH CONSOLE — one cohesive block, NOT sticky, NOT a second
+   toolbar stacked under the topbar. Primary controls always show;
+   everything else lives in the panel that drops open beneath it.
    ========================================================= */
 
-.filter-bar {
+.console {
   max-width: 1280px;
-  margin: 2rem auto 0;
-  padding: 1.1rem 1.25rem;
+  margin: 1.75rem auto 0;
+  padding: 0 2.5rem;
+}
+
+.console__primary {
   background: var(--white);
   border: 1px solid var(--sand-deep);
-  border-radius: 14px;
+  border-radius: 16px;
+  padding: 1rem 1.1rem;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.9rem;
-  position: sticky;
-  top: calc(var(--topbar-h) + 12px);
-  z-index: 30;
-  box-shadow: 0 10px 26px -18px rgba(32, 36, 31, 0.3);
+  gap: 0.75rem;
+  box-shadow: 0 14px 30px -22px rgba(32, 36, 31, 0.35);
 }
 
-.filter-bar__search {
-  position: relative;
-  flex: 1 1 220px;
-  min-width: 180px;
-}
+.console__search { position: relative; flex: 1 1 240px; min-width: 180px; }
 
-.filter-bar__search input {
+.console__search input {
   width: 100%;
   height: 44px;
   padding: 0 1rem 0 2.5rem;
@@ -943,9 +956,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   color: var(--charcoal);
 }
 
-.filter-bar__search input:focus { outline: none; border-color: var(--gold); background: var(--white); }
+.console__search input:focus { outline: none; border-color: var(--gold); background: var(--white); }
 
-.filter-bar__search i {
+.console__search i {
   position: absolute;
   left: 0.95rem;
   top: 50%;
@@ -954,9 +967,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   font-size: 0.95rem;
 }
 
-.select-wrap { position: relative; flex: 0 0 auto; }
+.console .select-wrap { position: relative; flex: 0 0 auto; }
 
-.select-wrap select {
+.console .select-wrap select {
   appearance: none;
   -webkit-appearance: none;
   height: 44px;
@@ -965,16 +978,16 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   border: 1px solid var(--sand-deep);
   background: var(--sand);
   font-family: var(--font-mono);
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink);
   cursor: pointer;
 }
 
-.select-wrap select:focus { outline: none; border-color: var(--gold); }
+.console .select-wrap select:focus { outline: none; border-color: var(--gold); }
 
-.select-wrap::after {
+.console .select-wrap::after {
   content: '\f282';
   font-family: 'bootstrap-icons';
   position: absolute;
@@ -986,7 +999,44 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   pointer-events: none;
 }
 
-.filter-bar__count {
+.console__filters-btn {
+  position: relative;
+  height: 44px;
+  padding: 0 1.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--white);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.console__filters-btn:hover { background: var(--ink-dark); }
+
+.console__filters-btn i.bi-chevron-down { transition: transform 0.2s ease; font-size: 0.75rem; }
+.console__filters-btn.is-open i.bi-chevron-down { transform: rotate(180deg); }
+
+.console__badge {
+  background: var(--gold);
+  color: var(--ink-dark);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.3rem;
+}
+
+.console__count {
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: 0.75rem;
@@ -995,14 +1045,103 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   white-space: nowrap;
 }
 
+/* --- The expandable panel: opens beneath the primary row, part of the
+   same card, so it never reads as a separate competing bar. --- */
+
+.console__panel {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--white);
+  border: 1px solid var(--sand-deep);
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+  margin-top: -1px;
+}
+
+.console__panel.is-open { max-height: 900px; }
+
+.console__panel-inner {
+  padding: 1.5rem 1.4rem 1.1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1.5rem 2rem;
+  border-top: 1px dashed var(--sand-deep);
+}
+
+.filter-group__label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rust);
+  margin-bottom: 0.7rem;
+}
+
+.chip-set { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+.chip {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--sand-deep);
+  background: var(--sand);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.chip.is-active { background: var(--ink); border-color: var(--ink); color: var(--white); }
+
+.checklist { display: flex; flex-direction: column; gap: 0.5rem; max-height: 150px; overflow-y: auto; padding-right: 0.25rem; }
+
+.checklist label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.85rem;
+  color: var(--charcoal);
+  cursor: pointer;
+}
+
+.checklist input[type="checkbox"] { accent-color: var(--rust); width: 15px; height: 15px; cursor: pointer; }
+
+.price-inputs { display: flex; align-items: center; gap: 0.5rem; }
+
+.price-inputs input {
+  width: 100%;
+  height: 40px;
+  padding: 0 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--sand-deep);
+  background: var(--sand);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.price-inputs input:focus { outline: none; border-color: var(--gold); background: var(--white); }
+.price-inputs span { color: #8a8f84; font-size: 0.8rem; }
+
+.console__panel-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 0.9rem 1.4rem 1.2rem;
+}
+
 @media (max-width: 700px) {
-  .filter-bar { position: static; }
-  .filter-bar__count { margin-left: 0; width: 100%; order: 10; }
+  .console { padding: 0 1.25rem; }
+  .console__count { order: 10; margin-left: 0; width: 100%; }
 }
 
 /* =========================================================
    PLAIN RESULTS GRID (search page — not a carousel)
    ========================================================= */
+
+.section--results { padding-top: 2.5rem; }
 
 .spot-grid {
   display: grid;
@@ -1022,8 +1161,44 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 
 .state-message i { font-size: 1.6rem; color: var(--rust); display: block; margin-bottom: 0.75rem; }
 
+.load-more-wrap { display: flex; justify-content: center; margin-top: 2.5rem; }
+
 /* =========================================================
-   LIVE API PANEL — "Explore any city worldwide"
+   BACK TO TOP — floating, appears once you've scrolled
+   ========================================================= */
+
+.back-to-top {
+  position: fixed;
+  right: 1.75rem;
+  bottom: 1.75rem;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: none;
+  background: var(--ink);
+  color: var(--sand);
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 14px 30px -12px rgba(9, 38, 38, 0.5);
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease, background 0.15s ease;
+  z-index: 150;
+}
+
+.back-to-top.is-visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.back-to-top:hover { background: var(--rust); }
+
+@media (max-width: 600px) {
+  .back-to-top { right: 1rem; bottom: 92px; width: 42px; height: 42px; }
+}
+
+/* =========================================================
+   LIVE API PANEL — "Points of Interest" (Amadeus)
    ========================================================= */
 
 .api-panel {
@@ -1057,8 +1232,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   font-family: var(--font-mono);
   font-size: 0.7rem;
   color: #8a8f84;
-  margin: 0.4rem 0 1.5rem;
+  margin: 0.4rem 0 1rem;
 }
+
+.api-panel__chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.25rem; }
 
 .api-results {
   display: grid;
@@ -1067,28 +1244,25 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   min-height: 120px;
 }
 
-.city-card {
+.poi-card {
   border: 1px dashed var(--sand-deep);
   border-radius: 10px;
   padding: 1.25rem 1.4rem;
   position: relative;
 }
 
-.city-card__name {
+.poi-card__name {
   font-family: var(--font-display);
   font-size: 1.1rem;
   color: var(--ink);
-  margin: 0 0 0.2rem;
+  margin: 0 0 0.35rem;
+  padding-right: 4.5rem;
 }
 
-.city-card__country { font-family: var(--font-mono); font-size: 0.72rem; color: var(--rust); margin-bottom: 0.8rem; }
-
-.city-card__stats { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.84rem; color: #4b514a; }
-
-.city-card__capital {
+.poi-card__category {
   position: absolute;
-  top: 0.9rem;
-  right: 0.9rem;
+  top: 1.1rem;
+  right: 1rem;
   font-family: var(--font-mono);
   font-size: 0.6rem;
   text-transform: uppercase;
@@ -1097,7 +1271,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   color: var(--ink-dark);
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
+  white-space: nowrap;
 }
+
+.poi-card__meta { font-size: 0.84rem; color: #4b514a; }
 
 .api-pagination {
   display: flex;
