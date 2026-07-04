@@ -5,21 +5,22 @@
  * location) all have real fields to work against instead of guesses.
  */
 class Destination {
-  constructor({ id, name, country, code, region, categories, price, priceUnit, rating, serenity, atmosphere, tags, blurb, seed }) {
+  constructor({ id, name, country, code, region, categories, price, priceUnit, rating, serenity, atmosphere, tags, blurb, seed, isLive }) {
     this.id = id;
     this.name = name;
     this.country = country;
     this.code = code;                 // short postal-style location code, e.g. "GR · SAN"
     this.region = region;             // 'local' | 'global'
     this.categories = categories;     // e.g. ['wedding', 'honeymoon', 'couples']
-    this.price = price;               // actual number, e.g. 4200 (USD)
+    this.price = price ?? null;       // actual number, e.g. 4200 (USD) — null when unknown (live spots)
     this.priceUnit = priceUnit;       // 'event' | 'night'
-    this.rating = rating;             // numeric, e.g. 4.8
+    this.rating = rating ?? null;     // numeric, e.g. 4.8 — null when unknown (live spots)
     this.serenity = serenity;         // 'high' | 'medium' | 'low'
     this.atmosphere = atmosphere;     // 'historical' | 'rustic' | 'modern' | 'luxury' | 'cozy'
     this.tags = tags || [];           // e.g. ['heritage', 'beachfront']
     this.blurb = blurb;
     this.imageUrl = `https://picsum.photos/seed/${seed}/640/480`;
+    this.isLive = isLive || false;    // true for spots merged in from the live API
   }
 
   get primaryCategory() { return this.categories[0]; }
@@ -39,7 +40,9 @@ class Destination {
     return map[this.primaryCategory] || 'spot-card__badge--vacation';
   }
 
-  get formattedPrice() { return `$${this.price.toLocaleString()} / ${this.priceUnit}`; }
+  get formattedPrice() { return this.price != null ? `$${this.price.toLocaleString()} / ${this.priceUnit}` : 'Price on request'; }
+
+  get ratingText() { return this.rating != null ? `★ ${this.rating.toFixed(1)}` : 'New'; }
 
   get serenityLabel() { return { high: 'Quiet', medium: 'Moderate', low: 'Lively' }[this.serenity] || ''; }
 
@@ -63,6 +66,7 @@ class Destination {
       <a class="spot-card" href="details.html?id=${this.id}" data-region="${this.region}" data-id="${this.id}">
         <div class="spot-card__media" style="background-image:url('${this.imageUrl}')">
           <span class="spot-card__badge ${this.badgeClass}">${this.badgeLabel}${extraCount > 0 ? ` +${extraCount}` : ''}</span>
+          ${this.isLive ? '<span class="spot-card__live"><i class="bi bi-broadcast"></i> Live</span>' : ''}
           <span class="spot-card__region">${this.region}</span>
         </div>
         <div class="spot-card__perforation"></div>
@@ -76,11 +80,58 @@ class Destination {
           <p class="spot-card__blurb">${this.blurb}</p>
           <div class="spot-card__foot">
             <span class="spot-card__price">${this.formattedPrice}</span>
-            <span class="spot-card__rating">★ ${this.rating.toFixed(1)}</span>
+            <span class="spot-card__rating">${this.ratingText}</span>
           </div>
         </div>
       </a>
     `;
+  }
+}
+
+/**
+ * LiveSpot
+ * A Destination built from a live OpenStreetMap point of interest
+ * (Nominatim for geocoding, Overpass for the POI itself) instead of our
+ * curated dataset. OSM doesn't know about price, rating, or wedding/
+ * vacation categories, so those are inferred or left graceful (the shared
+ * card template already knows how to show "Price on request" / "New").
+ */
+class LiveSpot extends Destination {
+  constructor({ id, name, country, region, osmCategory, tags, seed }) {
+    const traits = LiveSpot.inferTraits(osmCategory);
+    super({
+      id,
+      name,
+      country,
+      code: 'LIVE',
+      region,
+      categories: [traits.categoryTag],
+      price: null,
+      priceUnit: 'event',
+      rating: null,
+      serenity: traits.serenity,
+      atmosphere: traits.atmosphere,
+      tags,
+      blurb: `A ${traits.label.toLowerCase()} spot surfaced live from OpenStreetMap.`,
+      seed,
+      isLive: true,
+    });
+    this.osmCategoryLabel = traits.label;
+  }
+
+  get badgeLabel() { return this.osmCategoryLabel; }
+  get badgeClass() { return 'spot-card__badge--live'; }
+
+  static inferTraits(osmCategory) {
+    const map = {
+      historic: { label: 'Historic', serenity: 'high', atmosphere: 'historical', categoryTag: 'historic' },
+      museum: { label: 'Culture', serenity: 'high', atmosphere: 'historical', categoryTag: 'culture' },
+      attraction: { label: 'Sights', serenity: 'medium', atmosphere: 'modern', categoryTag: 'sights' },
+      viewpoint: { label: 'Sights', serenity: 'medium', atmosphere: 'modern', categoryTag: 'sights' },
+      park: { label: 'Park', serenity: 'high', atmosphere: 'rustic', categoryTag: 'park' },
+      beach: { label: 'Beach', serenity: 'high', atmosphere: 'rustic', categoryTag: 'beach' },
+    };
+    return map[osmCategory] || { label: 'Spot', serenity: 'medium', atmosphere: 'modern', categoryTag: 'sights' };
   }
 }
 

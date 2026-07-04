@@ -165,30 +165,21 @@
       </div>
     </section>
 
-    <!-- ============ LIVE API PANEL ============ -->
-    <section class="section" id="live-search">
-      <div class="section__head">
-        <div>
-          <span class="eyebrow">Powered by Amadeus</span>
-          <h2>Explore live points of interest, anywhere</h2>
+    <!-- ============ ADD LIVE SPOTS (merges straight into the grid above) ============ -->
+    <section class="section" style="padding-top:0;">
+      <div class="live-search">
+        <div class="live-search__label">
+          <i class="bi bi-broadcast"></i>
+          <div>
+            <strong>Add live spots</strong>
+            <span>Pull real points of interest from OpenStreetMap (Nominatim + Overpass) into the results above.</span>
+          </div>
         </div>
-      </div>
-
-      <div class="api-panel">
-        <p style="margin:0;color:#4b514a;font-size:0.92rem;">Not seeing your destination above? Pull up real sights, nightlife, and landmarks for any city on earth.</p>
-
-        <form class="api-panel__form" id="apiForm">
-          <input type="text" id="apiInput" placeholder="e.g. Beirut, Santorini, Kyoto…" aria-label="Search any city">
-          <button class="btn btn--primary" type="submit"><i class="bi bi-globe-americas"></i> Look Up</button>
+        <form class="live-search__form" id="liveForm">
+          <input type="text" id="liveInput" placeholder="e.g. Beirut, Santorini, Kyoto…" aria-label="Search a city for live spots">
+          <button class="btn btn--primary btn--sm" type="submit"><i class="bi bi-plus-lg"></i> Add to Results</button>
         </form>
-        <p class="api-panel__hint" id="apiHint">Results are fetched live from the Amadeus Self-Service API.</p>
-
-        <div class="api-panel__chips" id="apiChips"></div>
-
-        <div class="api-results" id="apiResults" aria-live="polite">
-          <!-- Rendered by AmadeusExplorer (js/api.js) -->
-        </div>
-        <div class="api-pagination" id="apiPagination"></div>
+        <p class="live-search__status" id="liveStatus">New spots merge straight into the grid above — same filters, same sorting.</p>
       </div>
     </section>
 
@@ -234,8 +225,8 @@
 
   <script src="js/sidebar.js"></script>
   <script src="js/destinations.js"></script>
-  <script src="js/search.js"></script>
   <script src="js/api.js"></script>
+  <script src="js/search.js"></script>
   <script src="js/backtotop.js"></script>
 </body>
 </html>

@@ -51,31 +51,42 @@ class SpotBrowser {
   /* ---------------------------------------------------------------- */
 
   buildPanelOptions() {
-    const typeList = document.getElementById('typeChecklist');
-    if (typeList) {
-      const allTypes = [...new Set(this.spots.flatMap((s) => s.categories))];
-      typeList.innerHTML = allTypes.map((t) => `
-        <label><input type="checkbox" value="${t}" data-role="type"> ${t.charAt(0).toUpperCase() + t.slice(1)}</label>
-      `).join('');
-    }
-
-    const locationList = document.getElementById('locationChecklist');
-    if (locationList) {
-      const allCountries = [...new Set(this.spots.map((s) => s.country))].sort();
-      locationList.innerHTML = allCountries.map((c) => `
-        <label><input type="checkbox" value="${c}" data-role="location"> ${c}</label>
-      `).join('');
-    }
+    this.refreshChecklist('typeChecklist', 'type', [...new Set(this.spots.flatMap((s) => s.categories))], (t) => t.charAt(0).toUpperCase() + t.slice(1));
+    this.refreshChecklist('locationChecklist', 'location', [...new Set(this.spots.map((s) => s.country))].sort(), (c) => c);
 
     const interestChips = document.getElementById('interestChips');
     if (interestChips) {
       const freq = {};
       this.spots.forEach((s) => s.tags.forEach((t) => { freq[t] = (freq[t] || 0) + 1; }));
-      const topTags = Object.keys(freq).sort((a, b) => freq[b] - freq[a]).slice(0, 8);
-      interestChips.innerHTML = topTags.map((t) => `
-        <button class="chip" type="button" data-role="interest" data-value="${t}">${t.replace('-', ' ')}</button>
-      `).join('');
+      const topTags = Object.keys(freq).sort((a, b) => freq[b] - freq[a]).slice(0, 10);
+      const existing = new Set([...interestChips.querySelectorAll('.chip')].map((c) => c.dataset.value));
+      topTags.filter((t) => !existing.has(t)).forEach((t) => {
+        const chip = document.createElement('button');
+        chip.className = 'chip';
+        chip.type = 'button';
+        chip.dataset.role = 'interest';
+        chip.dataset.value = t;
+        chip.textContent = t.replace('-', ' ');
+        interestChips.appendChild(chip);
+      });
     }
+  }
+
+  /** Appends only the options not already present, so existing checked state and user selections survive re-runs (e.g. after live spots are merged in). */
+  refreshChecklist(containerId, role, values, labelFor) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const existing = new Set([...container.querySelectorAll('input')].map((i) => i.value));
+    values.filter((v) => !existing.has(v)).forEach((v) => {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = v;
+      input.dataset.role = role;
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(` ${labelFor(v)}`));
+      container.appendChild(label);
+    });
   }
 
   /* ---------------------------------------------------------------- */
@@ -139,19 +150,25 @@ class SpotBrowser {
       });
     }
 
-    document.querySelectorAll('input[data-role="type"]').forEach((cb) => {
-      cb.addEventListener('change', () => {
+    const typeList = document.getElementById('typeChecklist');
+    if (typeList) {
+      typeList.addEventListener('change', (e) => {
+        const cb = e.target.closest('input[data-role="type"]');
+        if (!cb) return;
         cb.checked ? this.state.types.add(cb.value) : this.state.types.delete(cb.value);
         this.resetAndRender();
       });
-    });
+    }
 
-    document.querySelectorAll('input[data-role="location"]').forEach((cb) => {
-      cb.addEventListener('change', () => {
+    const locationList = document.getElementById('locationChecklist');
+    if (locationList) {
+      locationList.addEventListener('change', (e) => {
+        const cb = e.target.closest('input[data-role="location"]');
+        if (!cb) return;
         cb.checked ? this.state.locations.add(cb.value) : this.state.locations.delete(cb.value);
         this.resetAndRender();
       });
-    });
+    }
 
     this.bindChipGroup('ratingChips', (value) => { this.state.minRating = parseFloat(value); });
     this.bindChipGroup('serenityChips', (value) => { this.state.serenity = value; });
@@ -251,6 +268,10 @@ class SpotBrowser {
     const s = this.state;
     let score = 0;
 
+    // A small nudge so spots you just searched for actually show up near the
+    // top by default, instead of sinking below every rated curated spot.
+    if (spot.isLive) score += 0.5;
+
     if (s.types.size) {
       const overlap = spot.categories.filter((c) => s.types.has(c)).length;
       score += overlap * 3;
@@ -288,21 +309,41 @@ class SpotBrowser {
       return true;
     });
 
-    if (s.sort === 'price-asc') return list.sort((a, b) => a.price - b.price);
-    if (s.sort === 'price-desc') return list.sort((a, b) => b.price - a.price);
-    if (s.sort === 'rating-desc') return list.sort((a, b) => b.rating - a.rating);
+    // Unknown values (live spots don't have a set price/rating) always sort
+    // to the end, regardless of direction — never silently jump to the top.
+    if (s.sort === 'price-asc') return list.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+    if (s.sort === 'price-desc') return list.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
+    if (s.sort === 'rating-desc') return list.sort((a, b) => (b.rating ?? -Infinity) - (a.rating ?? -Infinity));
     if (s.sort === 'name-asc') return list.sort((a, b) => a.name.localeCompare(b.name));
 
     // 'best' — relevance score, tie-broken by rating so the default view still feels curated.
     return list
       .map((spot) => ({ spot, score: this.scoreSpot(spot) }))
-      .sort((a, b) => b.score - a.score || b.spot.rating - a.spot.rating)
+      .sort((a, b) => b.score - a.score || (b.spot.rating ?? 0) - (a.spot.rating ?? 0))
       .map((entry) => entry.spot);
   }
 
   resetAndRender() {
     this.visibleCount = this.pageSize;
     this.render();
+  }
+
+  /**
+   * Merges live API results directly into the same pool the grid draws
+   * from — no separate section, no separate pagination. Dedupes by
+   * name+country so searching the same city twice doesn't double up.
+   * Returns the number of genuinely new spots added.
+   */
+  addLiveSpots(newSpots) {
+    const existingKeys = new Set(this.spots.map((s) => `${s.name}|${s.country}`.toLowerCase()));
+    const fresh = newSpots.filter((s) => !existingKeys.has(`${s.name}|${s.country}`.toLowerCase()));
+    if (!fresh.length) return 0;
+
+    this.spots.push(...fresh);
+    this.buildPanelOptions(); // pick up any new type/location/interest values, without disturbing existing selections
+    this.visibleCount += fresh.length; // so newly-added spots aren't hidden behind "Load more" immediately
+    this.render();
+    return fresh.length;
   }
 
   render() {
@@ -335,8 +376,15 @@ class SpotBrowser {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  new SpotBrowser({
+  const browser = new SpotBrowser({
     gridSelector: '#browseGrid',
     countSelector: '#browseCount',
+  });
+
+  new LiveSearchWidget({
+    formSelector: '#liveForm',
+    inputSelector: '#liveInput',
+    statusSelector: '#liveStatus',
+    spotBrowser: browser,
   });
 });
