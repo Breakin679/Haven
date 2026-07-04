@@ -63,7 +63,7 @@
       <div class="console__primary">
         <div class="console__search">
           <i class="bi bi-search"></i>
-          <input type="search" id="browseSearch" placeholder="Search by name or country…" aria-label="Search spots by name or country">
+          <input type="search" id="browseSearch" placeholder="Search by name, country, or city (e.g. Beirut, Santorini)…" aria-label="Search spots by name, country, or city">
         </div>
 
         <div class="toggle-group" id="browseRegionToggle" role="group" aria-label="Filter by region">
@@ -89,6 +89,8 @@
         <span class="console__count" id="browseCount">18 spots found</span>
       </div>
 
+      <p class="live-status" id="liveStatus"></p>
+
       <div class="console__panel" id="filtersPanel">
         <div class="console__panel-inner">
           <div class="filter-group">
@@ -106,13 +108,8 @@
           </div>
 
           <div class="filter-group">
-            <span class="filter-group__label">Rating</span>
-            <div class="chip-set" id="ratingChips">
-              <button class="chip is-active" type="button" data-value="0">Any</button>
-              <button class="chip" type="button" data-value="4.5">4.5+</button>
-              <button class="chip" type="button" data-value="4.7">4.7+</button>
-              <button class="chip" type="button" data-value="4.9">4.9+</button>
-            </div>
+            <span class="filter-group__label">Rating <span class="filter-group__value" id="ratingValue">Any</span></span>
+            <input type="range" id="ratingSlider" class="rating-slider" min="0" max="5" step="0.1" value="0" aria-label="Minimum rating, 0 to 5">
           </div>
 
           <div class="filter-group">
@@ -144,7 +141,12 @@
 
           <div class="filter-group">
             <span class="filter-group__label">Location</span>
-            <div class="checklist" id="locationChecklist"><!-- built from data --></div>
+            <div class="select-wrap select-wrap--block">
+              <select id="locationSelect" aria-label="Filter by location">
+                <option value="">All locations</option>
+                <!-- Options built from data by js/search.js -->
+              </select>
+            </div>
           </div>
         </div>
 
@@ -162,24 +164,6 @@
       </div>
       <div class="load-more-wrap">
         <button class="btn btn--ghost" id="loadMoreBtn" type="button">Load More Spots</button>
-      </div>
-    </section>
-
-    <!-- ============ ADD LIVE SPOTS (merges straight into the grid above) ============ -->
-    <section class="section" style="padding-top:0;">
-      <div class="live-search">
-        <div class="live-search__label">
-          <i class="bi bi-broadcast"></i>
-          <div>
-            <strong>Add live spots</strong>
-            <span>Pull real points of interest from OpenStreetMap (Nominatim + Overpass) into the results above.</span>
-          </div>
-        </div>
-        <form class="live-search__form" id="liveForm">
-          <input type="text" id="liveInput" placeholder="e.g. Beirut, Santorini, Kyoto…" aria-label="Search a city for live spots">
-          <button class="btn btn--primary btn--sm" type="submit"><i class="bi bi-plus-lg"></i> Add to Results</button>
-        </form>
-        <p class="live-search__status" id="liveStatus">New spots merge straight into the grid above — same filters, same sorting.</p>
       </div>
     </section>
 

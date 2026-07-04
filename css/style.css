@@ -1109,6 +1109,74 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 
 .checklist input[type="checkbox"] { accent-color: var(--rust); width: 15px; height: 15px; cursor: pointer; }
 
+/* Full-width dropdown variant used inside the filter panel (vs. the
+   auto-width one in the console's primary row, e.g. Sort). */
+.select-wrap--block { width: 100%; }
+.console .select-wrap.select-wrap--block select {
+  width: 100%;
+  height: 42px;
+  padding: 0 2.2rem 0 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--sand-deep);
+  background: var(--sand);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--charcoal);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.console .select-wrap.select-wrap--block select:focus { outline: none; border-color: var(--gold); }
+
+.filter-group__value {
+  float: right;
+  color: var(--charcoal);
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
+}
+
+.rating-slider {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--sand-deep);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  margin-top: 0.4rem;
+}
+
+.rating-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--rust);
+  border: 2px solid var(--white);
+  box-shadow: 0 1px 4px rgba(32, 36, 31, 0.35);
+  cursor: pointer;
+}
+
+.rating-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--rust);
+  border: 2px solid var(--white);
+  box-shadow: 0 1px 4px rgba(32, 36, 31, 0.35);
+  cursor: pointer;
+}
+
+.rating-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--sand-deep);
+}
+
 .price-inputs { display: flex; align-items: center; gap: 0.5rem; }
 
 .price-inputs input {
@@ -1198,65 +1266,21 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 }
 
 /* =========================================================
-   LIVE SEARCH STRIP — merges results straight into the grid above,
-   no separate section/pagination of its own.
+   LIVE STATUS — small inline line under the search console that
+   reports on the automatic OpenStreetMap fetch triggered by search.
    ========================================================= */
 
-.live-search {
-  background: var(--white);
-  border: 1px dashed var(--sand-deep);
-  border-radius: 14px;
-  padding: 1.25rem 1.5rem;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem 1.5rem;
-}
-
-.live-search__label {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  flex: 1 1 220px;
-}
-
-.live-search__label i {
-  font-size: 1.2rem;
-  color: var(--rust);
-  margin-top: 0.15rem;
-}
-
-.live-search__label strong { display: block; font-family: var(--font-display); font-size: 1rem; color: var(--ink); }
-.live-search__label span { font-size: 0.82rem; color: #6b7168; }
-
-.live-search__form {
-  display: flex;
-  gap: 0.6rem;
-  flex: 1 1 320px;
-}
-
-.live-search__form input {
-  flex: 1;
-  height: 42px;
-  padding: 0 1rem;
-  border-radius: 999px;
-  border: 1px solid var(--sand-deep);
-  background: var(--sand);
-  font-family: var(--font-body);
-  font-size: 0.88rem;
-}
-
-.live-search__form input:focus { outline: none; border-color: var(--gold); background: var(--white); }
-
-.live-search__status {
-  flex-basis: 100%;
-  margin: 0;
+.live-status {
+  margin: 0.6rem 0 0;
   font-family: var(--font-mono);
   font-size: 0.72rem;
   color: #8a8f84;
+  min-height: 1.1em;
 }
 
-.live-search__status i { color: var(--rust); margin-right: 0.3rem; }
+.live-status:empty { margin: 0; }
+.live-status i { color: var(--rust); margin-right: 0.3rem; }
+.live-status .spinner--inline { vertical-align: -2px; margin-right: 0.35rem; }
 
 /* "Live" ribbon on cards merged in from the API */
 .spot-card__live {

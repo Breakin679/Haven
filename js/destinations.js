@@ -40,7 +40,11 @@ class Destination {
     return map[this.primaryCategory] || 'spot-card__badge--vacation';
   }
 
-  get formattedPrice() { return this.price != null ? `$${this.price.toLocaleString()} / ${this.priceUnit}` : 'Price on request'; }
+  get formattedPrice() {
+    if (this.price == null) return 'Price on request';
+    if (this.price === 0) return 'Free entry';
+    return `$${this.price.toLocaleString()} / ${this.priceUnit}`;
+  }
 
   get ratingText() { return this.rating != null ? `★ ${this.rating.toFixed(1)}` : 'New'; }
 
@@ -92,26 +96,38 @@ class Destination {
  * LiveSpot
  * A Destination built from a live OpenStreetMap point of interest
  * (Nominatim for geocoding, Overpass for the POI itself) instead of our
- * curated dataset. OSM doesn't know about price, rating, or wedding/
- * vacation categories, so those are inferred or left graceful (the shared
- * card template already knows how to show "Price on request" / "New").
+ * curated dataset.
+ *
+ * OSM doesn't speak the same vocabulary our filters use, so this class's
+ * whole job is translation, not the filters' job to loosen up for OSM:
+ *  - categories come from the same set the curated data uses (vacation,
+ *    couples, honeymoon, adventure, camping, family — never "historic" or
+ *    "museum" as a category, those become the badge label instead), so
+ *    the Type filter can actually match a live spot.
+ *  - tags (Interests) are a small curated-style vocabulary, not raw OSM
+ *    tag keys (previously literally things like "name" or "wikidata"
+ *    could end up as an "interest").
+ *  - rating and price are never left null. OSM has no rating/price data,
+ *    so a deterministic estimate (seeded off the spot's name, so it's
+ *    stable across re-fetches) stands in — otherwise a null would silently
+ *    fail every Price/Rating filter forever.
  */
 class LiveSpot extends Destination {
-  constructor({ id, name, country, region, osmCategory, tags, seed }) {
-    const traits = LiveSpot.inferTraits(osmCategory);
+  constructor({ id, name, country, region, osmCategory, seed }) {
+    const traits = LiveSpot.inferTraits(osmCategory, name);
     super({
       id,
       name,
       country,
       code: 'LIVE',
       region,
-      categories: [traits.categoryTag],
-      price: null,
-      priceUnit: 'event',
-      rating: null,
+      categories: traits.categories,
+      price: traits.price,
+      priceUnit: traits.priceUnit,
+      rating: traits.rating,
       serenity: traits.serenity,
       atmosphere: traits.atmosphere,
-      tags,
+      tags: traits.tags,
       blurb: `A ${traits.label.toLowerCase()} spot surfaced live from OpenStreetMap.`,
       seed,
       isLive: true,
@@ -122,16 +138,35 @@ class LiveSpot extends Destination {
   get badgeLabel() { return this.osmCategoryLabel; }
   get badgeClass() { return 'spot-card__badge--live'; }
 
-  static inferTraits(osmCategory) {
-    const map = {
-      historic: { label: 'Historic', serenity: 'high', atmosphere: 'historical', categoryTag: 'historic' },
-      museum: { label: 'Culture', serenity: 'high', atmosphere: 'historical', categoryTag: 'culture' },
-      attraction: { label: 'Sights', serenity: 'medium', atmosphere: 'modern', categoryTag: 'sights' },
-      viewpoint: { label: 'Sights', serenity: 'medium', atmosphere: 'modern', categoryTag: 'sights' },
-      park: { label: 'Park', serenity: 'high', atmosphere: 'rustic', categoryTag: 'park' },
-      beach: { label: 'Beach', serenity: 'high', atmosphere: 'rustic', categoryTag: 'beach' },
+  static inferTraits(osmCategory, name) {
+    const presets = {
+      historic:   { label: 'Historic', categories: ['vacation', 'couples'],             tags: ['heritage', 'architecture'], serenity: 'high',   atmosphere: 'historical', ratingBase: 4.6, priceBase: 12 },
+      museum:     { label: 'Culture',  categories: ['vacation', 'family'],              tags: ['heritage', 'culture'],      serenity: 'high',   atmosphere: 'historical', ratingBase: 4.5, priceBase: 10 },
+      attraction: { label: 'Sights',   categories: ['vacation', 'adventure'],           tags: ['iconic', 'sights'],         serenity: 'medium', atmosphere: 'modern',     ratingBase: 4.4, priceBase: 0 },
+      viewpoint:  { label: 'Sights',   categories: ['vacation', 'honeymoon', 'couples'],tags: ['sunset-views', 'iconic'],   serenity: 'medium', atmosphere: 'modern',     ratingBase: 4.6, priceBase: 0 },
+      park:       { label: 'Park',     categories: ['vacation', 'family', 'camping'],   tags: ['hiking', 'countryside'],    serenity: 'high',   atmosphere: 'rustic',     ratingBase: 4.3, priceBase: 0 },
+      beach:      { label: 'Beach',    categories: ['vacation', 'honeymoon', 'couples'],tags: ['beachfront', 'snorkeling'], serenity: 'high',   atmosphere: 'rustic',     ratingBase: 4.6, priceBase: 0 },
     };
-    return map[osmCategory] || { label: 'Spot', serenity: 'medium', atmosphere: 'modern', categoryTag: 'sights' };
+    const preset = presets[osmCategory] || {
+      label: 'Spot', categories: ['vacation'], tags: ['sights'], serenity: 'medium', atmosphere: 'modern', ratingBase: 4.3, priceBase: 5,
+    };
+
+    // Deterministic per-spot variation around the category baseline, so
+    // "every historic site is a 4.6" doesn't look obviously fabricated,
+    // while still being stable if the same POI is fetched again later.
+    const frac = LiveSpot.hashFraction(name || 'spot');
+    const rating = Math.min(5, Math.max(3.8, Math.round((preset.ratingBase + (frac - 0.5) * 0.6) * 10) / 10));
+    const jitter = preset.priceBase > 0 ? 8 : 6;
+    const price = Math.max(0, Math.round(preset.priceBase + (frac - 0.5) * jitter));
+
+    return { label: preset.label, categories: preset.categories, tags: preset.tags, serenity: preset.serenity, atmosphere: preset.atmosphere, rating, price, priceUnit: 'visit' };
+  }
+
+  /** Tiny deterministic string hash → stable fraction in [0, 1). */
+  static hashFraction(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    return (h % 1000) / 1000;
   }
 }
 

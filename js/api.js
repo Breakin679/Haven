@@ -26,13 +26,23 @@ class LiveSpotClient {
   }
 
   async fetchPOIs(lat, lon) {
+    // Nominatim returns lat/lon as strings, occasionally with formatting
+    // quirks. Overpass QL is strict about the (around:radius,lat,lon)
+    // block, so coerce to real numbers and fail loudly instead of ever
+    // sending "NaN,NaN" (a guaranteed 400).
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lon);
+    if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+      throw new Error(`Invalid coordinates passed to fetchPOIs: lat=${lat}, lon=${lon}`);
+    }
+
     const query = `
       [out:json][timeout:25];
       (
-        node["tourism"~"attraction|museum|viewpoint"](around:3000,${lat},${lon});
-        node["historic"](around:3000,${lat},${lon});
-        node["leisure"~"park|beach_resort"](around:3000,${lat},${lon});
-        node["natural"="beach"](around:3000,${lat},${lon});
+        node["tourism"~"attraction|museum|viewpoint"](around:3000,${latitude},${longitude});
+        node["historic"](around:3000,${latitude},${longitude});
+        node["leisure"~"park|beach_resort"](around:3000,${latitude},${longitude});
+        node["natural"="beach"](around:3000,${latitude},${longitude});
       );
       out body 20;
     `;
@@ -75,7 +85,7 @@ class LiveSpotClient {
           const category = this.classify(el.tags);
           if (!category) return null;
           return this.toLiveSpot(
-            { name: el.tags.name, category, tags: Object.keys(el.tags).slice(0, 3) },
+            { name: el.tags.name, category },
             countryLabel,
             region,
             `${idPrefix}-${i}`
@@ -105,7 +115,6 @@ class LiveSpotClient {
       country,
       region,
       osmCategory: poi.category,
-      tags: poi.tags || [],
       seed: `live-${poi.name}`.replace(/\s+/g, '-').toLowerCase(),
     });
   }
@@ -146,53 +155,5 @@ class LiveSpotClient {
 
     const key = Object.keys(byCity).find((c) => c.includes(query.toLowerCase()) || query.toLowerCase().includes(c));
     return key ? byCity[key] : null;
-  }
-}
-
-/**
- * LiveSearchWidget
- * Wires the compact "Add live spots" control to LiveSpotClient and merges
- * the results straight into the SpotBrowser's grid — same filters, same
- * sort, same pagination as the curated spots.
- */
-class LiveSearchWidget {
-  constructor({ formSelector, inputSelector, statusSelector, spotBrowser }) {
-    this.form = document.querySelector(formSelector);
-    if (!this.form || !spotBrowser) return;
-
-    this.input = document.querySelector(inputSelector);
-    this.status = document.querySelector(statusSelector);
-    this.browser = spotBrowser;
-    this.client = new LiveSpotClient();
-    this.counter = 0;
-
-    this.form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const query = this.input.value.trim();
-      if (query) this.run(query);
-    });
-  }
-
-  setStatus(html) { if (this.status) this.status.innerHTML = html; }
-
-  async run(query) {
-    this.setStatus(`<div class="spinner spinner--inline"></div> Fetching live spots for "${query}"…`);
-
-    try {
-      const { spots, cityLabel, countryLabel, sample } = await this.client.fetchLiveSpots(query, `live-${this.counter++}`);
-
-      if (!spots.length) {
-        this.setStatus(`<i class="bi bi-search"></i> No live spots found for "${query}" — try a bigger nearby city.`);
-        return;
-      }
-
-      const added = this.browser.addLiveSpots(spots);
-      const place = countryLabel ? `${cityLabel}, ${countryLabel}` : cityLabel;
-      const sampleNote = sample ? ' (sample data — live network calls are blocked in this preview)' : '';
-      this.setStatus(`<i class="bi bi-check-circle"></i> Added ${added} live spot${added === 1 ? '' : 's'} for ${place}${sampleNote}.`);
-      this.input.value = '';
-    } catch (err) {
-      this.setStatus(`<i class="bi bi-exclamation-triangle"></i> ${err.message || 'Something went wrong reaching the live data service.'}`);
-    }
   }
 }
