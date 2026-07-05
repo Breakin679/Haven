@@ -5,22 +5,24 @@
  * location) all have real fields to work against instead of guesses.
  */
 class Destination {
-  constructor({ id, name, country, code, region, categories, price, priceUnit, rating, serenity, atmosphere, tags, blurb, seed, isLive }) {
+  constructor({ id, name, country, code, region, categories, price, priceUnit, rating, serenity, atmosphere, tags, blurb, seed, isLive, lat, lon }) {
     this.id = id;
     this.name = name;
     this.country = country;
     this.code = code;                 // short postal-style location code, e.g. "GR · SAN"
     this.region = region;             // 'local' | 'global'
     this.categories = categories;     // e.g. ['wedding', 'honeymoon', 'couples']
-    this.price = price ?? null;       // actual number, e.g. 4200 (USD) — null when unknown (live spots)
-    this.priceUnit = priceUnit;       // 'event' | 'night'
-    this.rating = rating ?? null;     // numeric, e.g. 4.8 — null when unknown (live spots)
+    this.price = price ?? null;       // actual number, e.g. 4200 (USD)
+    this.priceUnit = priceUnit;       // 'event' | 'night' | 'visit'
+    this.rating = rating ?? null;     // numeric, e.g. 4.8
     this.serenity = serenity;         // 'high' | 'medium' | 'low'
     this.atmosphere = atmosphere;     // 'historical' | 'rustic' | 'modern' | 'luxury' | 'cozy'
     this.tags = tags || [];           // e.g. ['heritage', 'beachfront']
     this.blurb = blurb;
     this.imageUrl = `https://picsum.photos/seed/${seed}/640/480`;
     this.isLive = isLive || false;    // true for spots merged in from the live API
+    this.lat = lat ?? null;           // only set for live spots — powers the "View on OpenStreetMap" link
+    this.lon = lon ?? null;
   }
 
   get primaryCategory() { return this.categories[0]; }
@@ -40,7 +42,11 @@ class Destination {
     return map[this.primaryCategory] || 'spot-card__badge--vacation';
   }
 
-  get formattedPrice() { return this.price != null ? `$${this.price.toLocaleString()} / ${this.priceUnit}` : 'Price on request'; }
+  get formattedPrice() {
+    if (this.price == null) return 'Price on request';
+    if (this.price === 0) return 'Free entry';
+    return `$${this.price.toLocaleString()} / ${this.priceUnit}`;
+  }
 
   get ratingText() { return this.rating != null ? `★ ${this.rating.toFixed(1)}` : 'New'; }
 
@@ -59,7 +65,7 @@ class Destination {
     return `<div class="spot-carousel__item">${this.toGridHTML()}</div>`;
   }
 
-  /** Bare card markup — an actual link, ready for the future details page. */
+  /** Bare card markup — links straight to the details page. */
   toGridHTML() {
     const extraCount = this.categories.length - 1;
     return `
@@ -92,48 +98,73 @@ class Destination {
  * LiveSpot
  * A Destination built from a live OpenStreetMap point of interest
  * (Nominatim for geocoding, Overpass for the POI itself) instead of our
- * curated dataset. OSM doesn't know about price, rating, or wedding/
- * vacation categories, so those are inferred or left graceful (the shared
- * card template already knows how to show "Price on request" / "New").
+ * curated dataset.
+ *
+ * OSM doesn't speak our filters' vocabulary, so this class's whole job is
+ * translation, not the filters' job to loosen up for OSM:
+ *  - categories come from the same set the curated data uses (vacation,
+ *    couples, honeymoon, adventure, camping, family), so the Type filter
+ *    can actually match a live spot — the OSM-specific label (Historic,
+ *    Museum, ...) becomes the badge instead.
+ *  - tags are a small curated-style vocabulary, not raw OSM tag keys.
+ *  - rating and price are never left null — a deterministic estimate
+ *    (seeded off the name, stable across re-fetches) stands in, since a
+ *    null would silently fail every Price/Rating filter forever.
  */
 class LiveSpot extends Destination {
-  constructor({ id, name, country, region, osmCategory, tags, seed, lat, lon }) {
-    const traits = LiveSpot.inferTraits(osmCategory);
+  constructor({ id, name, country, region, osmCategory, seed, lat, lon }) {
+    const traits = LiveSpot.inferTraits(osmCategory, name);
     super({
       id,
       name,
       country,
       code: 'LIVE',
       region,
-      categories: [traits.categoryTag],
-      price: null,
-      priceUnit: 'event',
-      rating: null,
+      categories: traits.categories,
+      price: traits.price,
+      priceUnit: 'visit',
+      rating: traits.rating,
       serenity: traits.serenity,
       atmosphere: traits.atmosphere,
-      tags,
+      tags: traits.tags,
       blurb: `A ${traits.label.toLowerCase()} spot surfaced live from OpenStreetMap.`,
       seed,
       isLive: true,
+      lat,
+      lon,
     });
     this.osmCategoryLabel = traits.label;
-    this.lat = lat ?? null;
-    this.lon = lon ?? null;
   }
 
   get badgeLabel() { return this.osmCategoryLabel; }
   get badgeClass() { return 'spot-card__badge--live'; }
 
-  static inferTraits(osmCategory) {
-    const map = {
-      historic: { label: 'Historic', serenity: 'high', atmosphere: 'historical', categoryTag: 'historic' },
-      museum: { label: 'Culture', serenity: 'high', atmosphere: 'historical', categoryTag: 'culture' },
-      attraction: { label: 'Sights', serenity: 'medium', atmosphere: 'modern', categoryTag: 'sights' },
-      viewpoint: { label: 'Sights', serenity: 'medium', atmosphere: 'modern', categoryTag: 'sights' },
-      park: { label: 'Park', serenity: 'high', atmosphere: 'rustic', categoryTag: 'park' },
-      beach: { label: 'Beach', serenity: 'high', atmosphere: 'rustic', categoryTag: 'beach' },
+  static inferTraits(osmCategory, name) {
+    const presets = {
+      historic:   { label: 'Historic', categories: ['vacation', 'couples'],             tags: ['heritage', 'architecture'], serenity: 'high',   atmosphere: 'historical', ratingBase: 4.6, priceBase: 12 },
+      museum:     { label: 'Culture',  categories: ['vacation', 'family'],              tags: ['heritage', 'culture'],      serenity: 'high',   atmosphere: 'historical', ratingBase: 4.5, priceBase: 10 },
+      attraction: { label: 'Sights',   categories: ['vacation', 'adventure'],           tags: ['iconic', 'sights'],         serenity: 'medium', atmosphere: 'modern',     ratingBase: 4.4, priceBase: 0 },
+      viewpoint:  { label: 'Sights',   categories: ['vacation', 'honeymoon', 'couples'],tags: ['sunset-views', 'iconic'],   serenity: 'medium', atmosphere: 'modern',     ratingBase: 4.6, priceBase: 0 },
+      park:       { label: 'Park',     categories: ['vacation', 'family', 'camping'],   tags: ['hiking', 'countryside'],    serenity: 'high',   atmosphere: 'rustic',     ratingBase: 4.3, priceBase: 0 },
+      beach:      { label: 'Beach',    categories: ['vacation', 'honeymoon', 'couples'],tags: ['beachfront', 'snorkeling'], serenity: 'high',   atmosphere: 'rustic',     ratingBase: 4.6, priceBase: 0 },
     };
-    return map[osmCategory] || { label: 'Spot', serenity: 'medium', atmosphere: 'modern', categoryTag: 'sights' };
+    const preset = presets[osmCategory] || {
+      label: 'Spot', categories: ['vacation'], tags: ['sights'], serenity: 'medium', atmosphere: 'modern', ratingBase: 4.3, priceBase: 5,
+    };
+
+    const frac = LiveSpot.hashFraction(name || 'spot');
+    const rating = Math.min(5, Math.max(3.8, Math.round((preset.ratingBase + (frac - 0.5) * 0.6) * 10) / 10));
+    const jitter = preset.priceBase > 0 ? 8 : 6;
+    const price = Math.max(0, Math.round(preset.priceBase + (frac - 0.5) * jitter));
+
+    return { label: preset.label, categories: preset.categories, tags: preset.tags, serenity: preset.serenity, atmosphere: preset.atmosphere, rating, price };
+  }
+
+  /** Tiny deterministic string hash → stable fraction in [0, 1). */
+  static hashFraction(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    return (h % 1000) / 1000;
   }
 }
 
@@ -167,9 +198,16 @@ class DestinationCatalog {
    * Session-only persistence (no backend exists) so the details page can
    * look up a spot after a full page navigation — including live spots
    * merged in from the API, which only ever exist in memory otherwise.
+   * Merges rather than overwrites, so the home page and search page don't
+   * stomp on each other's persisted spots within the same session.
    */
   static persist(spots) {
-    try { sessionStorage.setItem('haven:spots', JSON.stringify(spots)); } catch (e) { /* storage unavailable — fail silently */ }
+    try {
+      const existing = DestinationCatalog.loadPersisted();
+      const byId = new Map(existing.map((s) => [String(s.id), s]));
+      spots.forEach((s) => byId.set(String(s.id), s));
+      sessionStorage.setItem('haven:spots', JSON.stringify([...byId.values()]));
+    } catch (e) { /* storage unavailable — fail silently */ }
   }
 
   static loadPersisted() {

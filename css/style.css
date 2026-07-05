@@ -1125,6 +1125,93 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .price-inputs input:focus { outline: none; border-color: var(--gold); background: var(--white); }
 .price-inputs span { color: #8a8f84; font-size: 0.8rem; }
 
+.filter-group__value {
+  float: right;
+  color: var(--charcoal);
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
+}
+
+.rating-slider {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--sand-deep);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  margin-top: 0.4rem;
+}
+
+.rating-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--rust);
+  border: 2px solid var(--white);
+  box-shadow: 0 1px 4px rgba(32, 36, 31, 0.35);
+  cursor: pointer;
+}
+
+.rating-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--rust);
+  border: 2px solid var(--white);
+  box-shadow: 0 1px 4px rgba(32, 36, 31, 0.35);
+  cursor: pointer;
+}
+
+.rating-slider::-moz-range-track { height: 4px; border-radius: 999px; background: var(--sand-deep); }
+
+/* Full-width dropdown variant used inside the filter panel (vs. the
+   auto-width one in the console's primary row, e.g. Sort). */
+.select-wrap--block { width: 100%; }
+.console .select-wrap.select-wrap--block select {
+  width: 100%;
+  height: 42px;
+  padding: 0 2.2rem 0 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--sand-deep);
+  background: var(--sand);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--charcoal);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.console .select-wrap.select-wrap--block select:focus { outline: none; border-color: var(--gold); }
+
+/* Active-filters summary bar above the results grid: every applied facet
+   as a removable pill. */
+.active-filters-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1.1rem; }
+
+.active-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: capitalize;
+  padding: 0.35rem 0.6rem 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--gold);
+  background: rgba(197, 160, 89, 0.12);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.active-filter-pill:hover { background: rgba(197, 160, 89, 0.24); border-color: var(--rust); }
+.active-filter-pill i { font-size: 0.85rem; color: var(--rust); }
+
 .console__panel-foot {
   display: flex;
   justify-content: flex-end;

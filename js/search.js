@@ -1,89 +1,509 @@
 /**
- * Entry point. Wires SearchService (data) + FilterManager (filter/sort)
- * + SearchUI (DOM) together. No filtering logic and no DOM lookups live
- * here — this file only coordinates the three.
- *
- *   type → debounce → local results render instantly → API results
- *   merge in → re-render, exactly like the redesign calls for.
+ * SpotBrowser
+ * Drives the Discovery Engine page: curated data + live API results in one
+ * pool, one set of hard filters, one ranked "best match" sort.
  */
-document.addEventListener('DOMContentLoaded', () => {
-  const grid = document.getElementById('resultsGrid');
-  if (!grid) return; // not on this page
+class SpotBrowser {
+  constructor({ gridSelector, countSelector }) {
+    this.grid = document.querySelector(gridSelector);
+    this.countEl = document.querySelector(countSelector);
+    if (!this.grid) return;
 
-  const searchService = new SearchService(LocalSpots.build());
-  const filters = new FilterManager();
-  const ui = new SearchUI();
+    this.spots = DestinationCatalog.buildData();
+    DestinationCatalog.persist(this.spots); // so details.html can look up curated spots even if home was never visited
 
-  const PAGE_SIZE = 12;
-  let query = '';
-  let visibleCount = PAGE_SIZE;
+    this.state = {
+      region: 'all',
+      query: '',
+      types: new Set(),
+      priceMin: null,
+      priceMax: null,
+      minRating: 0,
+      serenity: 'any',
+      atmosphere: 'any',
+      interests: new Set(),
+      location: 'all',
+      sort: 'best',
+    };
 
-  function currentResults() {
-    const textMatched = searchService.localResults(query);
-    return filters.apply(textMatched, query);
+    // Results are capped to the top 30 best matches overall; "Load more"
+    // reveals them 10 at a time until that cap.
+    this.pageSize = 10;
+    this.maxResults = 30;
+    this.visibleCount = this.pageSize;
+
+    // Live API plumbing: typing a search auto-fetches matching live spots
+    // from OpenStreetMap and merges them into the same pool. lastPlace
+    // caches the last geocoded city so a Type filter change can re-query
+    // Overpass at the same coordinates without geocoding again.
+    this.liveClient = new LiveSpotClient();
+    this.liveQueriesFetched = new Set();
+    this.liveCounter = 0;
+    this.lastPlace = null;
+    this.refineDebounce = null;
+
+    this.buildPanelOptions();
+    this.bindPrimary();
+    this.bindPanel();
+    this.render();
   }
 
-  function refreshChips() {
-    ui.renderQuickChips(FilterManager.topChipValues(searchService.allSpots), filters.state.chips);
-  }
+  /* ---------------------------------------------------------------- */
+  /* Setup                                                              */
+  /* ---------------------------------------------------------------- */
 
-  function render({ resetPage = true } = {}) {
-    if (resetPage) visibleCount = PAGE_SIZE;
-    const results = currentResults();
-    ui.setCount(results.length);
-    ui.renderResults(results.slice(0, visibleCount));
-    ui.setSentinelVisible(visibleCount < results.length);
-    ui.setBadge(filters.activeFilterCount);
-    refreshChips();
-  }
+  buildPanelOptions() {
+    this.refreshChipOptions('typeChips', [...new Set(this.spots.flatMap((s) => s.categories))], (t) => t.charAt(0).toUpperCase() + t.slice(1));
+    this.refreshSelectOptions('locationSelect', [...new Set(this.spots.map((s) => s.country))].sort());
 
-  function loadMore() {
-    const results = currentResults();
-    if (visibleCount >= results.length) return;
-    const next = results.slice(visibleCount, visibleCount + PAGE_SIZE);
-    visibleCount += PAGE_SIZE;
-    ui.renderResults(next, { append: true });
-    ui.setSentinelVisible(visibleCount < results.length);
-  }
-
-  async function runSearch(text) {
-    query = text;
-    render(); // local results, instant
-
-    if (query.length < 3) return;
-    ui.setLiveStatus(`<div class="spinner spinner--inline"></div> Searching live spots for "${query}"…`);
-    try {
-      const { added, cityLabel, countryLabel, sample } = await searchService.apiSearch(query);
-      if (!added) { ui.setLiveStatus(''); return; }
-      const place = countryLabel ? `${cityLabel}, ${countryLabel}` : cityLabel;
-      const sampleNote = sample ? ' (sample data — live network calls are blocked in this preview)' : '';
-      ui.setLiveStatus(`<i class="bi bi-broadcast"></i> Added ${added} live spot${added === 1 ? '' : 's'} for ${place}${sampleNote}.`);
-      render();
-    } catch (err) {
-      ui.setLiveStatus('');
+    const interestChips = document.getElementById('interestChips');
+    if (interestChips) {
+      const freq = {};
+      this.spots.forEach((s) => s.tags.forEach((t) => { freq[t] = (freq[t] || 0) + 1; }));
+      const topTags = Object.keys(freq).sort((a, b) => freq[b] - freq[a]).slice(0, 10);
+      const existing = new Set([...interestChips.querySelectorAll('.chip')].map((c) => c.dataset.value));
+      topTags.filter((t) => !existing.has(t)).forEach((t) => {
+        const chip = document.createElement('button');
+        chip.className = 'chip';
+        chip.type = 'button';
+        chip.dataset.role = 'interest';
+        chip.dataset.value = t;
+        chip.textContent = t.replace('-', ' ');
+        interestChips.appendChild(chip);
+      });
     }
   }
 
-  ui.bind({
-    onSearch: runSearch,
-    onChipToggle: (value, active) => {
-      active ? filters.state.chips.add(value) : filters.state.chips.delete(value);
-      render();
-    },
-    onPriceTier: (tier) => { filters.state.priceTier = tier; render(); },
-    onRating: (value) => { filters.state.minRating = value; render(); },
-    onSort: (value) => { filters.state.sort = value; render(); },
-    onRegion: (value) => { filters.state.region = value; render(); },
-    onClear: () => {
-      filters.reset();
-      ui.setPriceTier(null);
-      ui.setRatingStars(0);
-      document.querySelectorAll('#quickChips .chip').forEach((c) => c.classList.remove('is-active'));
-      render();
-    },
-    onApply: () => render(),
-    onLoadMore: loadMore,
-  });
+  refreshChipOptions(containerId, values, labelFor) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const existing = new Set([...container.querySelectorAll('.chip')].map((c) => c.dataset.value));
+    values.filter((v) => !existing.has(v)).forEach((v) => {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.type = 'button';
+      chip.dataset.value = v;
+      chip.textContent = labelFor(v);
+      container.appendChild(chip);
+    });
+  }
 
-  render();
+  refreshSelectOptions(selectId, values) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    const existing = new Set([...select.options].map((o) => o.value));
+    values.filter((v) => !existing.has(v)).forEach((v) => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      select.appendChild(opt);
+    });
+  }
+
+  bindPrimary() {
+    const searchInput = document.getElementById('browseSearch');
+    if (searchInput) {
+      let filterDebounce;
+      let liveDebounce;
+      const applyFilterNow = () => { this.state.query = searchInput.value.trim().toLowerCase(); this.resetAndRender(); };
+      const triggerLiveFetchNow = () => this.maybeFetchLiveSpots(searchInput.value.trim());
+
+      searchInput.addEventListener('input', () => {
+        clearTimeout(filterDebounce);
+        filterDebounce = setTimeout(applyFilterNow, 180);
+        clearTimeout(liveDebounce);
+        liveDebounce = setTimeout(triggerLiveFetchNow, 600);
+      });
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        clearTimeout(filterDebounce);
+        clearTimeout(liveDebounce);
+        applyFilterNow();
+        triggerLiveFetchNow();
+      });
+    }
+
+    const regionToggle = document.getElementById('browseRegionToggle');
+    if (regionToggle) {
+      regionToggle.querySelectorAll('.toggle-group__btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          regionToggle.querySelectorAll('.toggle-group__btn').forEach((b) => b.classList.remove('is-active'));
+          btn.classList.add('is-active');
+          this.state.region = btn.dataset.filter;
+          this.resetAndRender();
+        });
+      });
+    }
+
+    const sortSelect = document.getElementById('sortSelect');
+    if (sortSelect) sortSelect.addEventListener('change', () => { this.state.sort = sortSelect.value; this.render(); });
+
+    const filtersToggle = document.getElementById('filtersToggle');
+    const filtersPanel = document.getElementById('filtersPanel');
+    if (filtersToggle && filtersPanel) {
+      filtersToggle.addEventListener('click', () => {
+        const open = filtersPanel.classList.toggle('is-open');
+        filtersToggle.classList.toggle('is-open', open);
+        filtersToggle.setAttribute('aria-expanded', String(open));
+      });
+    }
+
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener('click', () => {
+        this.visibleCount = Math.min(this.visibleCount + this.pageSize, this.maxResults);
+        this.render();
+      });
+    }
+  }
+
+  bindPanel() {
+    const typeChips = document.getElementById('typeChips');
+    if (typeChips) {
+      typeChips.addEventListener('click', (e) => {
+        const chip = e.target.closest('.chip');
+        if (!chip) return;
+        chip.classList.toggle('is-active');
+        chip.classList.contains('is-active') ? this.state.types.add(chip.dataset.value) : this.state.types.delete(chip.dataset.value);
+        this.onTypesChanged();
+      });
+    }
+
+    const interestChips = document.getElementById('interestChips');
+    if (interestChips) {
+      interestChips.addEventListener('click', (e) => {
+        const chip = e.target.closest('.chip');
+        if (!chip) return;
+        chip.classList.toggle('is-active');
+        chip.classList.contains('is-active') ? this.state.interests.add(chip.dataset.value) : this.state.interests.delete(chip.dataset.value);
+        this.resetAndRender();
+      });
+    }
+
+    const locationSelect = document.getElementById('locationSelect');
+    if (locationSelect) {
+      locationSelect.addEventListener('change', () => {
+        this.state.location = locationSelect.value || 'all';
+        this.resetAndRender();
+      });
+    }
+
+    this.bindChipGroup('serenityChips', (value) => { this.state.serenity = value; });
+    this.bindChipGroup('atmosphereChips', (value) => { this.state.atmosphere = value; });
+
+    const ratingSlider = document.getElementById('ratingSlider');
+    const ratingValueEl = document.getElementById('ratingValue');
+    if (ratingSlider) {
+      let ratingDebounce;
+      ratingSlider.addEventListener('input', () => {
+        const value = parseFloat(ratingSlider.value);
+        if (ratingValueEl) ratingValueEl.textContent = value <= 0 ? 'Any' : `${value.toFixed(1)}+`;
+        clearTimeout(ratingDebounce);
+        ratingDebounce = setTimeout(() => { this.state.minRating = value; this.resetAndRender(); }, 120);
+      });
+    }
+
+    const priceMin = document.getElementById('priceMin');
+    const priceMax = document.getElementById('priceMax');
+    [priceMin, priceMax].forEach((input) => {
+      if (!input) return;
+      let debounce;
+      input.addEventListener('input', () => {
+        clearTimeout(debounce);
+        debounce = setTimeout(() => {
+          this.state.priceMin = priceMin?.value ? Number(priceMin.value) : null;
+          this.state.priceMax = priceMax?.value ? Number(priceMax.value) : null;
+          this.resetAndRender();
+        }, 250);
+      });
+    });
+
+    const clearBtn = document.getElementById('clearFilters');
+    if (clearBtn) clearBtn.addEventListener('click', () => this.clearFilters());
+
+    const applyBtn = document.getElementById('applyFilters');
+    if (applyBtn && document.getElementById('filtersPanel')) {
+      applyBtn.addEventListener('click', () => {
+        this.resetAndRender();
+        this.refineLiveForFilters();
+        document.getElementById('filtersPanel').classList.remove('is-open');
+        document.getElementById('filtersToggle')?.classList.remove('is-open');
+      });
+    }
+  }
+
+  bindChipGroup(containerId, onSelect) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.addEventListener('click', (e) => {
+      const chip = e.target.closest('.chip');
+      if (!chip) return;
+      container.querySelectorAll('.chip').forEach((c) => c.classList.remove('is-active'));
+      chip.classList.add('is-active');
+      onSelect(chip.dataset.value);
+      this.resetAndRender();
+    });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Filtering, ranking, sorting                                        */
+  /* ---------------------------------------------------------------- */
+
+  static SERENITY_LABELS = { high: 'Quiet & serene', medium: 'Balanced', low: 'Lively & social' };
+  static ATMOSPHERE_LABELS = { historical: 'Historical', rustic: 'Rustic', modern: 'Modern', luxury: 'Luxury', cozy: 'Cozy' };
+
+  get activeFilterCount() {
+    let n = this.state.types.size + this.state.interests.size;
+    if (this.state.location !== 'all') n += 1;
+    if (this.state.priceMin !== null || this.state.priceMax !== null) n += 1;
+    if (this.state.minRating > 0) n += 1;
+    if (this.state.serenity !== 'any') n += 1;
+    if (this.state.atmosphere !== 'any') n += 1;
+    return n;
+  }
+
+  /**
+   * Hard filters — checking "Wedding" means you only see weddings, not
+   * just weddings nudged higher while everything else stays visible.
+   * Facets are AND'ed together; multi-select facets (type/interests) are
+   * OR'd internally (matching any one selected value is enough).
+   */
+  passesFilters(spot) {
+    const s = this.state;
+    if (s.region !== 'all' && spot.region !== s.region) return false;
+    if (!spot.matchesQuery(s.query)) return false;
+    if (s.types.size && !spot.categories.some((c) => s.types.has(c))) return false;
+    if (s.location !== 'all' && spot.country !== s.location) return false;
+
+    if (s.priceMin !== null || s.priceMax !== null) {
+      if (spot.price == null) return false;
+      const min = s.priceMin ?? 0;
+      const max = s.priceMax ?? Infinity;
+      if (spot.price < min || spot.price > max) return false;
+    }
+
+    if (s.minRating > 0 && (spot.rating == null || spot.rating < s.minRating)) return false;
+    if (s.serenity !== 'any' && spot.serenity !== s.serenity) return false;
+    if (s.atmosphere !== 'any' && spot.atmosphere !== s.atmosphere) return false;
+    if (s.interests.size && !spot.tags.some((t) => s.interests.has(t))) return false;
+
+    return true;
+  }
+
+  scoreSpot(spot) {
+    const s = this.state;
+    let score = spot.rating ?? 0;
+    if (spot.isLive) score += 0.5;
+    if (s.interests.size) score += spot.tags.filter((t) => s.interests.has(t)).length * 1.5;
+    if (s.types.size) score += spot.categories.filter((c) => s.types.has(c)).length * 0.5;
+    return score;
+  }
+
+  get processedList() {
+    const s = this.state;
+    const list = this.spots.filter((spot) => this.passesFilters(spot));
+
+    if (s.sort === 'price-asc') return list.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+    if (s.sort === 'price-desc') return list.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
+    if (s.sort === 'rating-desc') return list.sort((a, b) => (b.rating ?? -Infinity) - (a.rating ?? -Infinity));
+    if (s.sort === 'name-asc') return list.sort((a, b) => a.name.localeCompare(b.name));
+
+    return list
+      .map((spot) => ({ spot, score: this.scoreSpot(spot) }))
+      .sort((a, b) => b.score - a.score || a.spot.name.localeCompare(b.spot.name))
+      .map((entry) => entry.spot);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Live API integration                                               */
+  /* ---------------------------------------------------------------- */
+
+  addLiveSpots(newSpots) {
+    const existingKeys = new Set(this.spots.map((s) => `${s.name}|${s.country}`.toLowerCase()));
+    const fresh = newSpots.filter((s) => !existingKeys.has(`${s.name}|${s.country}`.toLowerCase()));
+    if (!fresh.length) return 0;
+
+    this.spots.push(...fresh);
+    DestinationCatalog.persist(this.spots); // so clicking into a live spot's details page works
+    this.buildPanelOptions();
+    this.visibleCount = Math.min(this.visibleCount + fresh.length, this.maxResults);
+    this.render();
+    return fresh.length;
+  }
+
+  setLiveStatus(html) {
+    const el = document.getElementById('liveStatus');
+    if (el) el.innerHTML = html;
+  }
+
+  async maybeFetchLiveSpots(query) {
+    const key = query.trim().toLowerCase();
+    if (key.length < 3 || this.liveQueriesFetched.has(key)) return;
+    this.liveQueriesFetched.add(key);
+
+    this.setLiveStatus(`<div class="spinner spinner--inline"></div> Looking for live spots in "${query}"…`);
+
+    try {
+      const { spots, cityLabel, countryLabel, sample, lat, lon, region } = await this.liveClient.fetchLiveSpots(query, `live-${this.liveCounter++}`, this.state.types);
+
+      if (lat != null && lon != null) this.lastPlace = { lat, lon, cityLabel, countryLabel, region };
+
+      if (!spots.length) { this.setLiveStatus(''); return; }
+
+      const added = this.addLiveSpots(spots);
+      if (!added) { this.setLiveStatus(''); return; }
+      const place = countryLabel ? `${cityLabel}, ${countryLabel}` : cityLabel;
+      const sampleNote = sample ? ' (sample data — live network calls are blocked in this preview)' : '';
+      this.setLiveStatus(`<i class="bi bi-broadcast"></i> Added ${added} live spot${added === 1 ? '' : 's'} for ${place}${sampleNote}.`);
+    } catch (err) {
+      this.setLiveStatus('');
+    }
+  }
+
+  refineLiveForFilters() {
+    clearTimeout(this.refineDebounce);
+    this.refineDebounce = setTimeout(async () => {
+      if (!this.lastPlace) return;
+      const { lat, lon, cityLabel, countryLabel, region } = this.lastPlace;
+      this.setLiveStatus(`<div class="spinner spinner--inline"></div> Refining live spots for "${cityLabel}"…`);
+      try {
+        const spots = await this.liveClient.spotsFromPOIs(lat, lon, countryLabel, region, `live-${this.liveCounter++}`, this.state.types);
+        const added = spots.length ? this.addLiveSpots(spots) : 0;
+        const place = countryLabel ? `${cityLabel}, ${countryLabel}` : cityLabel;
+        this.setLiveStatus(added
+          ? `<i class="bi bi-broadcast"></i> ${added} new live match${added === 1 ? '' : 'es'} for ${place} with these filters.`
+          : `<i class="bi bi-broadcast"></i> Live spots for ${place} already reflect these filters.`);
+      } catch (err) {
+        this.setLiveStatus('');
+      }
+    }, 400);
+  }
+
+  onTypesChanged() {
+    this.resetAndRender();
+    this.refineLiveForFilters();
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Rendering                                                          */
+  /* ---------------------------------------------------------------- */
+
+  resetAndRender() {
+    this.visibleCount = this.pageSize;
+    this.render();
+  }
+
+  clearFilters() {
+    this.state.types.clear();
+    this.state.interests.clear();
+    this.state.location = 'all';
+    this.state.priceMin = null;
+    this.state.priceMax = null;
+    this.state.minRating = 0;
+    this.state.serenity = 'any';
+    this.state.atmosphere = 'any';
+
+    document.querySelectorAll('#typeChips .chip').forEach((c) => c.classList.remove('is-active'));
+    const locationSelect = document.getElementById('locationSelect');
+    if (locationSelect) locationSelect.value = '';
+    document.querySelectorAll('#interestChips .chip').forEach((c) => c.classList.remove('is-active'));
+    ['serenityChips', 'atmosphereChips'].forEach((id) => {
+      const group = document.getElementById(id);
+      if (!group) return;
+      group.querySelectorAll('.chip').forEach((c, i) => c.classList.toggle('is-active', i === 0));
+    });
+    const ratingSlider = document.getElementById('ratingSlider');
+    const ratingValueEl = document.getElementById('ratingValue');
+    if (ratingSlider) ratingSlider.value = '0';
+    if (ratingValueEl) ratingValueEl.textContent = 'Any';
+    const priceMin = document.getElementById('priceMin');
+    const priceMax = document.getElementById('priceMax');
+    if (priceMin) priceMin.value = '';
+    if (priceMax) priceMax.value = '';
+
+    this.resetAndRender();
+    this.refineLiveForFilters();
+  }
+
+  renderActiveFilters() {
+    const bar = document.getElementById('activeFiltersBar');
+    if (!bar) return;
+    const s = this.state;
+    const pills = [];
+
+    s.types.forEach((t) => pills.push({
+      label: t.charAt(0).toUpperCase() + t.slice(1),
+      remove: () => { s.types.delete(t); document.querySelector(`#typeChips .chip[data-value="${t}"]`)?.classList.remove('is-active'); this.onTypesChanged(); },
+    }));
+    s.interests.forEach((t) => pills.push({
+      label: t.replace('-', ' '),
+      remove: () => { s.interests.delete(t); document.querySelector(`#interestChips .chip[data-value="${t}"]`)?.classList.remove('is-active'); this.resetAndRender(); },
+    }));
+    if (s.location !== 'all') pills.push({
+      label: s.location,
+      remove: () => { s.location = 'all'; const sel = document.getElementById('locationSelect'); if (sel) sel.value = ''; this.resetAndRender(); },
+    });
+    if (s.minRating > 0) pills.push({
+      label: `${s.minRating.toFixed(1)}+ ★`,
+      remove: () => {
+        s.minRating = 0;
+        const slider = document.getElementById('ratingSlider'); const label = document.getElementById('ratingValue');
+        if (slider) slider.value = '0'; if (label) label.textContent = 'Any';
+        this.resetAndRender();
+      },
+    });
+    if (s.serenity !== 'any') pills.push({
+      label: SpotBrowser.SERENITY_LABELS[s.serenity] || s.serenity,
+      remove: () => { s.serenity = 'any'; document.querySelectorAll('#serenityChips .chip').forEach((c, i) => c.classList.toggle('is-active', i === 0)); this.resetAndRender(); },
+    });
+    if (s.atmosphere !== 'any') pills.push({
+      label: SpotBrowser.ATMOSPHERE_LABELS[s.atmosphere] || s.atmosphere,
+      remove: () => { s.atmosphere = 'any'; document.querySelectorAll('#atmosphereChips .chip').forEach((c, i) => c.classList.toggle('is-active', i === 0)); this.resetAndRender(); },
+    });
+    if (s.priceMin !== null || s.priceMax !== null) pills.push({
+      label: `$${s.priceMin ?? 0}–${s.priceMax ?? '∞'}`,
+      remove: () => {
+        s.priceMin = null; s.priceMax = null;
+        const min = document.getElementById('priceMin'); const max = document.getElementById('priceMax');
+        if (min) min.value = ''; if (max) max.value = '';
+        this.resetAndRender();
+      },
+    });
+
+    if (!pills.length) { bar.innerHTML = ''; bar.hidden = true; return; }
+    bar.hidden = false;
+    bar.innerHTML = pills.map((p, i) => `<button class="active-filter-pill" type="button" data-i="${i}">${p.label} <i class="bi bi-x"></i></button>`).join('');
+    bar.querySelectorAll('.active-filter-pill').forEach((btn, i) => btn.addEventListener('click', () => pills[i].remove()));
+  }
+
+  render() {
+    this.renderActiveFilters();
+
+    const results = this.processedList.slice(0, this.maxResults);
+    const visible = results.slice(0, this.visibleCount);
+
+    if (this.countEl) this.countEl.textContent = `${results.length} spot${results.length === 1 ? '' : 's'} found`;
+
+    this.grid.innerHTML = visible.length
+      ? visible.map((spot) => spot.toGridHTML()).join('')
+      : `<div class="state-message"><i class="bi bi-compass"></i> No spots match those filters yet — try widening your search.</div>`;
+
+    const badge = document.getElementById('filtersBadge');
+    if (badge) {
+      const n = this.activeFilterCount;
+      badge.hidden = n === 0;
+      badge.textContent = String(n);
+    }
+
+    const loadMoreWrap = document.querySelector('.load-more-wrap');
+    if (loadMoreWrap) loadMoreWrap.style.display = this.visibleCount < results.length ? 'flex' : 'none';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  new SpotBrowser({
+    gridSelector: '#browseGrid',
+    countSelector: '#browseCount',
+  });
 });
