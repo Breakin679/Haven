@@ -51,7 +51,7 @@ class SpotBrowser {
 
   buildPanelOptions() {
     this.refreshChipOptions('typeChips', [...new Set(this.spots.flatMap((s) => s.categories))], (t) => t.charAt(0).toUpperCase() + t.slice(1));
-    this.refreshSelectOptions('locationSelect', [...new Set(this.spots.map((s) => s.country))].sort());
+    this.refreshSelectOptions('locationSelect', [...new Set(this.spots.map((s) => s.country.trim()))].sort());
 
     const interestChips = document.getElementById('interestChips');
     if (interestChips) {
@@ -112,6 +112,7 @@ class SpotBrowser {
 
   bindPrimary() {
     const searchInput = document.getElementById('browseSearch');
+    const searchForm = document.getElementById('searchForm');
     if (searchInput) {
       let filterDebounce;
       let liveDebounce;
@@ -124,14 +125,20 @@ class SpotBrowser {
         clearTimeout(liveDebounce);
         liveDebounce = setTimeout(triggerLiveFetchNow, 600);
       });
-      searchInput.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter') return;
-        e.preventDefault();
+
+      // Submitting the form (Enter key, or a mobile keyboard's Go/Search
+      // action — which doesn't always fire a reliable keydown "Enter"
+      // across browsers, but does always trigger form submit) searches
+      // immediately, bypassing both debounces.
+      const searchNow = (e) => {
+        if (e) e.preventDefault();
         clearTimeout(filterDebounce);
         clearTimeout(liveDebounce);
         applyFilterNow();
         triggerLiveFetchNow();
-      });
+      };
+      if (searchForm) searchForm.addEventListener('submit', searchNow);
+      else searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') searchNow(e); });
     }
 
     const sortSelect = document.getElementById('sortSelect');
@@ -152,7 +159,6 @@ class SpotBrowser {
       loadMoreBtn.addEventListener('click', () => {
         this.visibleCount = Math.min(this.visibleCount + this.pageSize, this.maxResults);
         this.render();
-        this.fetchLiveForCurrentQuery();
       });
     }
   }
@@ -298,8 +304,16 @@ class SpotBrowser {
   /* ---------------------------------------------------------------- */
 
   addLiveSpots(newSpots) {
-    const existingKeys = new Set(this.spots.map((s) => `${s.name}|${s.country}`.toLowerCase()));
-    const fresh = newSpots.filter((s) => !existingKeys.has(`${s.name}|${s.country}`.toLowerCase()));
+    const keyOf = (s) => `${s.name}|${s.country}`.trim().toLowerCase();
+    const existingKeys = new Set(this.spots.map(keyOf));
+    const fresh = [];
+    const seenInBatch = new Set();
+    newSpots.forEach((s) => {
+      const key = keyOf(s);
+      if (existingKeys.has(key) || seenInBatch.has(key)) return;
+      seenInBatch.add(key);
+      fresh.push(s);
+    });
     if (!fresh.length) return 0;
 
     this.spots.push(...fresh);
@@ -370,19 +384,6 @@ class SpotBrowser {
   resetAndRender() {
     this.visibleCount = this.pageSize;
     this.render();
-    this.fetchLiveForCurrentQuery();
-  }
-
-  /**
-   * Any filter/sort change, "Show Results", or "Load More" should surface
-   * live API results too — not just the debounced search-box typing. This
-   * reuses maybeFetchLiveSpots' own dedup cache, so calling it repeatedly
-   * (once per filter change) never re-fetches the same city twice.
-   */
-  fetchLiveForCurrentQuery() {
-    const searchInput = document.getElementById('browseSearch');
-    const query = searchInput ? searchInput.value.trim() : '';
-    if (query) this.maybeFetchLiveSpots(query);
   }
 
   clearFilters() {

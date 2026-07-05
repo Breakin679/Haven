@@ -61,10 +61,10 @@
     <!-- ============ SEARCH CONSOLE ============ -->
     <div class="console">
       <div class="console__primary">
-        <div class="console__search">
+        <form class="console__search" id="searchForm">
           <i class="bi bi-search"></i>
           <input type="search" id="browseSearch" placeholder="Search by name, country, or city (e.g. Beirut, Santorini)…" aria-label="Search spots by name, country, or city">
-        </div>
+        </form>
 
         <div class="select-wrap">
           <select id="sortSelect" aria-label="Sort results">
@@ -119,6 +119,7 @@
                 <!-- Options built from data by js/search.js -->
               </select>
             </div>
+            <span class="filter-group__hint">Grows as you search — search a city to add its country here</span>
           </div>
         </div>
 
