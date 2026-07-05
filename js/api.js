@@ -7,6 +7,56 @@
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
+class WeatherService {
+  constructor() {
+    // The key is intentionally centralized here so it can be swapped easily.
+    // In a production backend, this should live server-side to avoid exposing it to end users.
+    this.apiKey = window.HAVEN_WEATHER_KEY || 'a5825edd997845d4960190952260507';
+    this.baseUrl = 'https://api.weatherapi.com/v1/current.json';
+    this.cache = new Map();
+    this.cacheTtlMs = 30 * 60 * 1000;
+    this.requestTimeoutMs = 5000;
+  }
+
+  async getWeatherForCity(cityName, countryName = '') {
+    const query = [cityName, countryName].filter(Boolean).join(', ').trim();
+    if (!query) return null;
+
+    const cacheKey = query.toLowerCase();
+    const cached = this.cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.cacheTtlMs) return cached.data;
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), this.requestTimeoutMs);
+
+    try {
+      const url = `${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}&q=${encodeURIComponent(query)}&aqi=no`;
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      const weather = {
+        temp: data?.current?.temp_c ?? null,
+        condition: data?.current?.condition?.text || 'Condition unavailable',
+        icon: data?.current?.condition?.icon || '',
+      };
+
+      this.cache.set(cacheKey, { timestamp: Date.now(), data: weather });
+      return weather;
+    } catch (error) {
+      console.warn('Weather lookup failed', error);
+      return null;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+}
+
+const weatherService = new WeatherService();
+
 class LiveSpotClient {
   async geocodeCity(name) {
     const url = `${NOMINATIM_URL}?q=${encodeURIComponent(name)}&format=json&limit=1&addressdetails=1`;

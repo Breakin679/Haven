@@ -238,6 +238,37 @@ class DetailsPage {
     return [spot.imageUrl, `https://picsum.photos/seed/${slug}-2/900/600`, `https://picsum.photos/seed/${slug}-3/900/600`];
   }
 
+  async renderWeatherCard(spot) {
+    const weatherEl = this.container?.querySelector('[data-weather-card]');
+    if (!weatherEl) return;
+
+    const weatherQuery = spot.city || spot.name || spot.country || 'this destination';
+    const weatherLabel = spot.city || spot.country || spot.name || 'this destination';
+
+    weatherEl.innerHTML = '<span style="color:#6b7280; font-size:0.95rem;">Checking weather…</span>';
+    const weather = await weatherService.getWeatherForCity(weatherQuery, spot.country);
+
+    if (!weather || weather.temp == null) {
+      weatherEl.innerHTML = '<span style="color:#6b7280; font-size:0.95rem;">Weather is temporarily unavailable for this destination.</span>';
+      return;
+    }
+
+    const iconMarkup = weather.icon
+      ? `<img src="https:${weather.icon}" alt="" width="24" height="24" style="display:block;">`
+      : '<i class="bi bi-cloud" style="font-size:1rem;"></i>';
+
+    weatherEl.innerHTML = `
+      <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; padding:0.8rem 1rem; border:1px solid rgba(15,61,62,0.12); border-radius:999px; background:rgba(255,255,255,0.8); box-shadow:0 8px 24px rgba(15,61,62,0.08);">
+        <span style="font-size:1.05rem; font-weight:700; color:#0f3d3e;">${weather.temp}°C</span>
+        <span style="display:flex; align-items:center; gap:0.45rem; color:#3b4a4b;">
+          ${iconMarkup}
+          <span>${weather.condition}</span>
+        </span>
+        <span style="color:#6b7280; font-size:0.95rem;">Live weather for ${weatherLabel}</span>
+      </div>
+    `;
+  }
+
   /* ---------------------------------------------------------------- */
   /* Rendering                                                          */
   /* ---------------------------------------------------------------- */
@@ -293,6 +324,7 @@ class DetailsPage {
               <span><i class="bi bi-palette"></i> ${DetailsPage.cap(s.atmosphere)}</span>
             </div>
 
+            <div data-weather-card style="margin-top:1rem;"></div>
             <p class="details__blurb">${s.blurb}</p>
 
             <h3 class="details__subhead">Amenities &amp; highlights</h3>
@@ -334,6 +366,7 @@ class DetailsPage {
 
     this.renderRelated();
     this.bindActions();
+    this.renderWeatherCard(this.spot);
   }
 
   /**
