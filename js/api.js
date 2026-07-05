@@ -37,17 +37,38 @@ class LiveSpotClient {
     return want;
   }
 
-  buildOverpassQuery(latitude, longitude, types) {
+  buildOverpassQuery(latitude, longitude, types, radius) {
     const want = LiveSpotClient.wantedOsmFilters(types);
     const clauses = [];
-    if (want.attraction) clauses.push(`node["tourism"~"attraction|museum|viewpoint"](around:3000,${latitude},${longitude});`);
-    if (want.historic) clauses.push(`node["historic"](around:3000,${latitude},${longitude});`);
-    if (want.park) clauses.push(`node["leisure"~"park|beach_resort"](around:3000,${latitude},${longitude});`);
-    if (want.beach) clauses.push(`node["natural"="beach"](around:3000,${latitude},${longitude});`);
+    if (want.attraction) clauses.push(`node["tourism"~"attraction|museum|viewpoint"](around:${radius},${latitude},${longitude});`);
+    if (want.historic) clauses.push(`node["historic"](around:${radius},${latitude},${longitude});`);
+    if (want.park) clauses.push(`node["leisure"~"park|beach_resort"](around:${radius},${latitude},${longitude});`);
+    if (want.beach) clauses.push(`node["natural"="beach"](around:${radius},${latitude},${longitude});`);
     return `[out:json][timeout:25];(${clauses.join('\n')});out body 20;`;
   }
 
-  async fetchPOIs(lat, lon, types) {
+  /**
+   * A fixed "search nearby" radius makes sense for a city, but Nominatim
+   * happily geocodes a whole country or state to a single centroid point
+   * too — searching a rural 3km circle around India's geometric center
+   * finds nothing tagged in OSM and looks like a broken search. Scale the
+   * radius to the geocoded place's actual bounding box instead, clamped
+   * to something Overpass can still answer quickly.
+   */
+  static radiusFromBoundingBox(boundingbox) {
+    if (!Array.isArray(boundingbox) || boundingbox.length !== 4) return 3000;
+    const [south, north, west, east] = boundingbox.map(Number);
+    if ([south, north, west, east].some(Number.isNaN)) return 3000;
+
+    const midLat = (south + north) / 2;
+    const latKm = Math.abs(north - south) * 111;
+    const lonKm = Math.abs(east - west) * 111 * Math.cos((midLat * Math.PI) / 180);
+    const halfDiagonalKm = Math.max(latKm, lonKm) / 2;
+
+    return Math.round(Math.min(Math.max(halfDiagonalKm * 1000, 3000), 25000));
+  }
+
+  async fetchPOIs(lat, lon, types, radius = 3000) {
     // Nominatim returns lat/lon as strings, occasionally with formatting
     // quirks. Overpass QL is strict about the (around:radius,lat,lon)
     // block, so coerce to real numbers and fail loudly instead of ever
@@ -58,7 +79,7 @@ class LiveSpotClient {
       throw new Error(`Invalid coordinates passed to fetchPOIs: lat=${lat}, lon=${lon}`);
     }
 
-    const query = this.buildOverpassQuery(latitude, longitude, types);
+    const query = this.buildOverpassQuery(latitude, longitude, types, radius);
     const res = await fetch(OVERPASS_URL, { method: 'POST', body: query });
     if (!res.ok) throw new Error('The live map data service is unavailable right now. Please try again shortly.');
     const data = await res.json();
@@ -89,8 +110,8 @@ class LiveSpotClient {
   }
 
   /** Reusable on its own (no geocoding) so a Type-filter change can re-query the *same* coordinates with a narrower/broader tag set. */
-  async spotsFromPOIs(lat, lon, countryLabel, region, idPrefix, types, cityLabel) {
-    const elements = await this.fetchPOIs(lat, lon, types);
+  async spotsFromPOIs(lat, lon, countryLabel, region, idPrefix, types, cityLabel, radius) {
+    const elements = await this.fetchPOIs(lat, lon, types, radius);
     return elements
       .map((el, i) => {
         const category = this.classify(el.tags);
@@ -116,7 +137,8 @@ class LiveSpotClient {
       const lat = parseFloat(place.lat);
       const lon = parseFloat(place.lon);
       const cityLabel = place.display_name?.split(',')[0] || cityName;
-      const spots = await this.spotsFromPOIs(lat, lon, countryLabel, region, idPrefix, types, cityLabel);
+      const radius = LiveSpotClient.radiusFromBoundingBox(place.boundingbox);
+      const spots = await this.spotsFromPOIs(lat, lon, countryLabel, region, idPrefix, types, cityLabel, radius);
 
       return { spots, cityLabel, countryLabel, sample: false, lat, lon, region };
     } catch (err) {
