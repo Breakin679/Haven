@@ -12,8 +12,18 @@
 </head>
 <body>
 
-  <!-- ============ SIDEBAR ============ -->
+  <!-- ============ SIDEBAR — collapsible rail with icons + labels (custom UI requirement) ============ -->
   <aside class="sidebar" aria-label="Primary navigation">
+    <div class="sidebar__head">
+      <a class="sidebar__brand" href="index.html" aria-label="Haven home">
+        <svg class="sidebar__logo" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="24" cy="24" r="21" stroke="#C9A227" stroke-width="1.5" stroke-dasharray="3 3"/>
+          <circle cx="24" cy="24" r="15" stroke="#F6F1E7" stroke-width="1.2"/>
+          <path d="M16 26L21 31L32 18" stroke="#F6F1E7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="sidebar__label">Haven</span>
+      </a>
+    </div>
     <nav class="sidebar__nav">
       <a class="sidebar__link" href="index.html">
         <i class="bi bi-house-heart"></i>
@@ -28,27 +38,33 @@
         <span class="sidebar__label">Community</span>
       </a>
     </nav>
-
     <div class="sidebar__foot">
-      <button class="sidebar__toggle" type="button" aria-label="Expand navigation" aria-expanded="false">
-        <i class="bi bi-chevron-right"></i>
+      <button class="sidebar__toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
+        <i class="bi bi-list" aria-hidden="true"></i>
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
       </button>
     </div>
   </aside>
+  <div class="sidebar-overlay" aria-hidden="true"></div>
 
   <!-- ============ MAIN CONTENT ============ -->
   <div class="app-main">
 
     <header class="topbar">
-      <a class="topbar__home" href="index.html" aria-label="Haven home">
-        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <circle cx="24" cy="24" r="21" stroke="#C9A227" stroke-width="1.5" stroke-dasharray="3 3"/>
-          <circle cx="24" cy="24" r="15" stroke="#0F3D3E" stroke-width="1.2"/>
-          <path d="M16 26L21 31L32 18" stroke="#0F3D3E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        Haven
-      </a>
-      <a class="btn btn--ghost btn--sm" href="community.html"><i class="bi bi-plus-lg"></i> Submit a Venue</a>
+      <div class="topbar__start">
+        <button class="topbar__menu" type="button" aria-label="Open navigation" aria-expanded="false">
+          <i class="bi bi-list"></i>
+        </button>
+        <a class="topbar__home" href="index.html" aria-label="Haven home">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="24" cy="24" r="21" stroke="#C9A227" stroke-width="1.5" stroke-dasharray="3 3"/>
+            <circle cx="24" cy="24" r="15" stroke="#0F3D3E" stroke-width="1.2"/>
+            <path d="M16 26L21 31L32 18" stroke="#0F3D3E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Haven
+        </a>
+      </div>
+      <a class="btn btn--ghost btn--sm btn--compact" href="community.html"><i class="bi bi-plus-lg"></i> <span class="btn__text">Submit a Venue</span></a>
     </header>
 
     <!-- ============ PAGE HEAD ============ -->

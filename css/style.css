@@ -27,8 +27,9 @@
   --rail-w: 76px;
   --rail-w-expanded: 232px;
   --rail-w-sm: 58px;
-  --rail-w-sm-expanded: 196px;
-  --topbar-h: 64px;
+  --rail-w-sm-expanded: 220px;
+  --rail-w-mobile: min(280px, 85vw);
+  --topbar-h: 60px;
   --radius: 6px;
   --shadow: 0 12px 30px -14px rgba(15, 61, 62, 0.35);
 }
@@ -59,11 +60,8 @@ button { font-family: inherit; }
 }
 
 /* =========================================================
-   SIDEBAR
-   Wide desktop -> hover-rail, no button needed.
-   Tablet & mobile -> compact icon-only rail; press the toggle to expand
-   and reveal labels (hover isn't reliable at this size, and a
-   collapsible sidebar — not a bottom bar — is a project requirement).
+   SIDEBAR — collapsible rail with icons + labels (custom UI)
+   Desktop: hover expands. Tablet: icon rail + toggle. Mobile: off-canvas drawer.
    ========================================================= */
 
 .sidebar {
@@ -71,14 +69,17 @@ button { font-family: inherit; }
   top: 0;
   left: 0;
   height: 100vh;
+  height: 100dvh;
   width: var(--rail-w);
   background: var(--ink);
   color: var(--sand);
   display: flex;
   flex-direction: column;
-  z-index: 200;
+  z-index: 220;
   border-right: 1px solid rgba(246, 241, 231, 0.08);
-  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s ease;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.22s ease;
 }
 
 .sidebar:hover,
@@ -87,13 +88,44 @@ button { font-family: inherit; }
   box-shadow: 16px 0 40px -20px rgba(9, 38, 38, 0.55);
 }
 
+.sidebar__head {
+  flex: none;
+  padding: 1.1rem 0.65rem 0.5rem;
+  overflow: hidden;
+}
+
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  height: 46px;
+  padding: 0 0.72rem;
+  border-radius: 10px;
+  color: var(--sand);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.16s ease;
+}
+
+.sidebar__brand:hover { background: rgba(246, 241, 231, 0.09); }
+
+.sidebar__logo {
+  width: 32px;
+  height: 32px;
+  flex: none;
+}
+
 .sidebar__nav {
   flex: 1;
-  padding: 1.5rem 0.65rem 1rem;
+  padding: 0.5rem 0.65rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sidebar__link {
@@ -143,15 +175,13 @@ button { font-family: inherit; }
   transform: translateX(0);
 }
 
-.sidebar__head {
+.sidebar__foot {
   flex: none;
+  padding: 0.75rem 0.65rem 1.1rem;
   display: flex;
-  align-items: center;
   justify-content: center;
-  padding: 1rem 0.65rem 0.25rem;
 }
 
-/* Hamburger-to-X toggle: hidden by default (wide desktop relies on hover only). */
 .sidebar__toggle {
   display: none;
   align-items: center;
@@ -181,28 +211,90 @@ button { font-family: inherit; }
 .sidebar.is-expanded .sidebar__toggle .bi-list { opacity: 0; transform: rotate(90deg) scale(0.6); }
 .sidebar.is-expanded .sidebar__toggle .bi-x-lg { opacity: 1; transform: rotate(0deg) scale(1); }
 
-/* Main content sits after the rail — fixed offset, rail overlays on hover */
+/* Backdrop when sidebar overlays content on tablet/mobile */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 38, 38, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 210;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+
+.sidebar-overlay.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body.sidebar-open { overflow: hidden; }
+
 .app-main {
   margin-left: var(--rail-w);
   min-height: 100vh;
+  min-height: 100dvh;
+  transition: margin-left 0.22s ease;
 }
 
-/* Tablet & mobile: a narrower icon-only rail, expanded only by pressing
-   the toggle (hovering a touch screen is unreliable, so we don't rely on
-   it). Expanding overlays the content rather than pushing it — app-main's
-   margin-left stays at the collapsed rail width. */
+/* Tablet: compact icon rail, toggle expands with overlay */
 @media (max-width: 1024px) {
   :root { --rail-w: var(--rail-w-sm); --rail-w-expanded: var(--rail-w-sm-expanded); }
-  .sidebar:hover, .sidebar:focus-within { width: var(--rail-w-sm); box-shadow: none; }
-  .sidebar.is-expanded { width: var(--rail-w-sm-expanded); box-shadow: 16px 0 40px -20px rgba(9, 38, 38, 0.55); }
+
+  .sidebar:hover,
+  .sidebar:focus-within {
+    width: var(--rail-w-sm);
+    box-shadow: none;
+  }
+
+  .sidebar.is-expanded {
+    width: var(--rail-w-sm-expanded);
+    box-shadow: 16px 0 40px -20px rgba(9, 38, 38, 0.55);
+  }
+
   .sidebar__link i { font-size: 1.05rem; }
   .sidebar__toggle { display: flex; }
 }
 
+/* Mobile: off-canvas drawer — full width content, sidebar slides in */
 @media (max-width: 600px) {
-  .sidebar__head { padding: 0.85rem 0.5rem 0.15rem; }
+  .sidebar {
+    width: var(--rail-w-mobile);
+    transform: translateX(-100%);
+    box-shadow: none;
+  }
+
+  .sidebar.is-expanded {
+    transform: translateX(0);
+    box-shadow: 16px 0 48px -12px rgba(9, 38, 38, 0.6);
+  }
+
+  .sidebar:hover,
+  .sidebar:focus-within {
+    width: var(--rail-w-mobile);
+    transform: translateX(-100%);
+    box-shadow: none;
+  }
+
+  .sidebar.is-expanded:hover,
+  .sidebar.is-expanded:focus-within {
+    transform: translateX(0);
+  }
+
+  .sidebar.is-expanded .sidebar__label,
+  .sidebar__label {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .sidebar__head { padding: 1rem 0.75rem 0.35rem; }
+  .sidebar__nav { padding: 0.35rem 0.75rem 1rem; }
+  .sidebar__foot { padding: 0.65rem 0.75rem 1rem; }
+  .sidebar__link { height: 48px; min-height: 44px; }
   .sidebar__toggle { width: 40px; height: 40px; font-size: 1.1rem; }
-  .sidebar__link { height: 48px; }
+
+  .app-main { margin-left: 0; }
 }
 
 /* =========================================================
@@ -214,14 +306,41 @@ button { font-family: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 2rem;
-  background: rgba(255, 253, 248, 0.82);
+  gap: 0.75rem;
+  padding: 0 1.5rem;
+  background: rgba(255, 253, 248, 0.92);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--sand-deep);
   position: sticky;
   top: 0;
   z-index: 90;
 }
+
+.topbar__start {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.topbar__menu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--sand-deep);
+  background: var(--white);
+  color: var(--ink);
+  font-size: 1.25rem;
+  cursor: pointer;
+  flex: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.topbar__menu:hover { background: var(--sand); border-color: var(--gold); }
 
 .topbar__home {
   display: flex;
@@ -231,12 +350,21 @@ button { font-family: inherit; }
   font-size: 1.15rem;
   font-weight: 600;
   color: var(--ink);
+  min-width: 0;
 }
 
-.topbar__home svg { width: 30px; height: 30px; flex: none; } /* swap for provided logo file */
+.topbar__home svg { width: 30px; height: 30px; flex: none; }
+
+.btn--compact .btn__text { display: inline; }
 
 @media (max-width: 600px) {
-  .topbar { padding: 0 1.25rem; }
+  .topbar { padding: 0 1rem; height: 56px; }
+  .topbar__menu { display: flex; }
+  .topbar__home { font-size: 1.05rem; }
+  .topbar__home svg { width: 26px; height: 26px; }
+  .btn--compact { padding: 0.5rem 0.65rem; }
+  .btn--compact .btn__text { display: none; }
+  .btn--compact i { margin: 0; }
 }
 
 .btn {
@@ -427,8 +555,22 @@ button { font-family: inherit; }
 }
 
 @media (max-width: 900px) {
-  .hero { grid-template-columns: 1fr; margin: 1.25rem; }
-  .hero__image { min-height: 240px; }
+  .hero { grid-template-columns: 1fr; margin: 1.25rem 1.5rem 0; min-height: auto; }
+  .hero__image { min-height: 240px; order: -1; }
+  .hero__postmark { width: 72px; height: 72px; top: 1rem; right: 1rem; }
+}
+
+@media (max-width: 600px) {
+  .hero { margin: 0.75rem 0.75rem 0; border-radius: 14px; }
+  .hero__content { padding: 2rem 1.25rem 1.75rem; }
+  .hero__postmark { display: none; }
+  .hero__actions { flex-direction: column; align-items: stretch; }
+  .hero__actions .btn { justify-content: center; }
+  .hero__stats {
+    flex-wrap: wrap;
+    gap: 1.25rem 1.75rem;
+  }
+  .hero__stat-num { font-size: 1.35rem; }
 }
 
 /* =========================================================
@@ -864,9 +1006,14 @@ button { font-family: inherit; }
    ========================================================= */
 
 @media (max-width: 600px) {
-  .section, .topbar { padding-left: 1.25rem; padding-right: 1.25rem; }
-  .hero { margin: 1rem; }
-  .hero__content { padding: 2.25rem 1.5rem; }
+  .section { padding: 3rem 1rem; }
+  .section__head { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .section__head .toggle-group { width: 100%; justify-content: center; }
+  .testimonials { padding: 3rem 1rem; }
+  .testi-card--quote { flex-direction: column; padding: 1.75rem 1.25rem; }
+  .testi-card--minimal p.quote { font-size: 1.1rem; }
+  .carousel__track { gap: 1rem; }
+  .spot-carousel__item { flex-basis: 100%; }
 }
 
 /* Reduced motion */
