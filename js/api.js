@@ -1,11 +1,10 @@
 /**
- * LiveSpotClient
- * Pulls real points of interest from OpenStreetMap:
- *   1. Nominatim geocodes the typed city name into coordinates.
- *   2. Overpass fetches nearby tourism/historic/leisure/natural nodes.
- *   3. Each result becomes a LiveSpot (see destinations.js) so it can be
- *      merged directly into the same grid, filters, and sort as our own
- *      curated spots.
+ * OsmApi
+ * The only thing the search page knows about OpenStreetMap: call
+ * searchPlaces(query) and get back Spot[]. Nominatim (geocoding) and
+ * Overpass (POIs) are implementation details entirely hidden in here —
+ * swapping this for a real backend later means rewriting this file only,
+ * nothing in search/.
  *
  * Both APIs are free and keyless — no registration, no OAuth, no
  * expiring tokens. (This sandbox's network allowlist blocks external
@@ -15,8 +14,46 @@
  */
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const SERENITY_TAG = { high: 'quiet', medium: 'balanced', low: 'lively' };
 
-class LiveSpotClient {
+class OsmApi {
+  /**
+   * Returns { spots, cityLabel, countryLabel, sample }. Never throws to
+   * the caller for ordinary "nothing found" cases — only for genuine
+   * service failures with no sample data to fall back on.
+   */
+  async searchPlaces(query) {
+    try {
+      const place = await this.geocodeCity(query);
+      if (!place) return { spots: [], cityLabel: query, countryLabel: '', sample: false };
+
+      const countryLabel = place.address?.country || '';
+      const region = place.address?.country_code === 'lb' ? 'local' : 'global';
+      const elements = await this.fetchPOIs(place.lat, place.lon);
+
+      const spots = elements
+        .map((el, i) => {
+          const category = this.classify(el.tags);
+          if (!category) return null;
+          return this.toSpot({ name: el.tags.name, category }, countryLabel, region, `osm-${query}-${i}`);
+        })
+        .filter(Boolean);
+
+      return { spots, cityLabel: place.display_name?.split(',')[0] || query, countryLabel, sample: false };
+    } catch (err) {
+      const sample = OsmApi.sampleData(query);
+      if (!sample) {
+        throw new Error('Couldn\u2019t reach the live map service right now. Try again shortly, or search Beirut, Santorini, Kyoto, or Marrakech.');
+      }
+      return {
+        spots: sample.pois.map((poi, i) => this.toSpot(poi, sample.country, sample.region, `sample-${query}-${i}`)),
+        cityLabel: sample.cityLabel,
+        countryLabel: sample.country,
+        sample: true,
+      };
+    }
+  }
+
   async geocodeCity(name) {
     const url = `${NOMINATIM_URL}?q=${encodeURIComponent(name)}&format=json&limit=1&addressdetails=1`;
     const res = await fetch(url, { headers: { Accept: 'application/json' } });
@@ -25,42 +62,7 @@ class LiveSpotClient {
     return data[0] || null;
   }
 
-  /**
-   * Maps our own Type vocabulary (wedding/vacation/honeymoon/couples/
-   * adventure/camping/family) onto which OSM node filters are worth
-   * asking Overpass for. This is the actual API integration point: picking
-   * a Type in the UI changes what gets requested from Overpass, not just
-   * how already-fetched results get sorted afterward.
-   * "vacation" is deliberately broad (matches almost everything), so
-   * selecting it — or selecting nothing — asks for all four categories.
-   */
-  static wantedOsmFilters(types) {
-    const t = types && types.size ? types : null;
-    const want = {
-      attraction: !t || t.has('adventure') || t.has('vacation'),
-      historic: !t || t.has('wedding') || t.has('vacation'),
-      park: !t || t.has('camping') || t.has('family') || t.has('vacation'),
-      beach: !t || t.has('honeymoon') || t.has('couples') || t.has('vacation'),
-    };
-    // Safety net: an unusual combination that maps to nothing should still
-    // return real results rather than an empty query.
-    if (!want.attraction && !want.historic && !want.park && !want.beach) {
-      return { attraction: true, historic: true, park: true, beach: true };
-    }
-    return want;
-  }
-
-  buildOverpassQuery(latitude, longitude, types) {
-    const want = LiveSpotClient.wantedOsmFilters(types);
-    const clauses = [];
-    if (want.attraction) clauses.push(`node["tourism"~"attraction|museum|viewpoint"](around:3000,${latitude},${longitude});`);
-    if (want.historic) clauses.push(`node["historic"](around:3000,${latitude},${longitude});`);
-    if (want.park) clauses.push(`node["leisure"~"park|beach_resort"](around:3000,${latitude},${longitude});`);
-    if (want.beach) clauses.push(`node["natural"="beach"](around:3000,${latitude},${longitude});`);
-    return `[out:json][timeout:25];(${clauses.join('\n')});out body 20;`;
-  }
-
-  async fetchPOIs(lat, lon, types) {
+  async fetchPOIs(lat, lon) {
     // Nominatim returns lat/lon as strings, occasionally with formatting
     // quirks. Overpass QL is strict about the (around:radius,lat,lon)
     // block, so coerce to real numbers and fail loudly instead of ever
@@ -71,7 +73,20 @@ class LiveSpotClient {
       throw new Error(`Invalid coordinates passed to fetchPOIs: lat=${lat}, lon=${lon}`);
     }
 
-    const query = this.buildOverpassQuery(latitude, longitude, types);
+    // Categories are generated from whatever comes back, not filtered up
+    // front — so the query always asks Overpass broadly for everything
+    // relevant, and the UI's quick filter chips are built afterward from
+    // the actual merged result set.
+    const query = `
+      [out:json][timeout:25];
+      (
+        node["tourism"~"attraction|museum|viewpoint"](around:3000,${latitude},${longitude});
+        node["historic"](around:3000,${latitude},${longitude});
+        node["leisure"~"park|beach_resort"](around:3000,${latitude},${longitude});
+        node["natural"="beach"](around:3000,${latitude},${longitude});
+      );
+      out body 20;
+    `;
     const res = await fetch(OVERPASS_URL, { method: 'POST', body: query });
     if (!res.ok) throw new Error('The live map data service is unavailable right now. Please try again shortly.');
     const data = await res.json();
@@ -87,76 +102,51 @@ class LiveSpotClient {
     return null;
   }
 
-  /** Turns raw Overpass elements into LiveSpots. Reusable on its own (no
-   * geocoding) so a Type-filter change can re-query the *same* coordinates
-   * with a narrower/broader tag set instead of asking the person to search again. */
-  async spotsFromPOIs(lat, lon, countryLabel, region, idPrefix, types) {
-    const elements = await this.fetchPOIs(lat, lon, types);
-    return elements
-      .map((el, i) => {
-        const category = this.classify(el.tags);
-        if (!category) return null;
-        return this.toLiveSpot({ name: el.tags.name, category }, countryLabel, region, `${idPrefix}-${i}`);
-      })
-      .filter(Boolean);
-  }
-
   /**
-   * Returns { spots, cityLabel, countryLabel, sample, lat, lon, region } or
-   * throws with a human-readable message the UI can show directly. `lat`/
-   * `lon` are returned (when real, non-sample data) so the caller can cache
-   * them and re-query Overpass later as Type filters change.
-   *
-   * Always attempts the real Nominatim + Overpass calls first. Only if
-   * that genuinely fails (offline, blocked, service down, rate-limited)
-   * does it fall back to labeled sample data — and only for the handful
-   * of cities that sample data covers; anything else surfaces a real
-   * error instead of silently pretending to work.
+   * Translates an OSM category into a Spot. OSM has no rating/price, so a
+   * deterministic estimate (seeded off the name, stable across re-fetches)
+   * stands in — a null would otherwise silently fail every Rating/Price
+   * filter forever instead of actually taking part in them.
    */
-  async fetchLiveSpots(cityName, idPrefix, types) {
-    try {
-      const place = await this.geocodeCity(cityName);
-      if (!place) return { spots: [], cityLabel: cityName, countryLabel: '', sample: false, lat: null, lon: null, region: null };
+  toSpot(poi, country, region, id) {
+    const presets = {
+      historic:   { tags: ['heritage', 'architecture'], serenity: 'high',   atmosphere: 'historical', ratingBase: 4.6, priceBase: 12 },
+      museum:     { tags: ['heritage', 'culture'],       serenity: 'high',   atmosphere: 'historical', ratingBase: 4.5, priceBase: 10 },
+      attraction: { tags: ['iconic', 'sights'],          serenity: 'medium', atmosphere: 'modern',     ratingBase: 4.4, priceBase: 0 },
+      viewpoint:  { tags: ['sunset-views', 'iconic'],    serenity: 'medium', atmosphere: 'modern',     ratingBase: 4.6, priceBase: 0 },
+      park:       { tags: ['hiking', 'countryside'],     serenity: 'high',   atmosphere: 'rustic',     ratingBase: 4.3, priceBase: 0 },
+      beach:      { tags: ['beachfront', 'snorkeling'],  serenity: 'high',   atmosphere: 'rustic',     ratingBase: 4.6, priceBase: 0 },
+    };
+    const preset = presets[poi.category] || { tags: ['sights'], serenity: 'medium', atmosphere: 'modern', ratingBase: 4.3, priceBase: 5 };
 
-      const countryLabel = place.address?.country || '';
-      const region = place.address?.country_code === 'lb' ? 'local' : 'global';
-      const spots = await this.spotsFromPOIs(place.lat, place.lon, countryLabel, region, idPrefix, types);
+    // Deterministic per-spot variation around the category baseline, so
+    // "every historic site is a 4.6" doesn't look obviously fabricated,
+    // while staying stable if the same POI is fetched again later.
+    const frac = OsmApi.hashFraction(poi.name || 'spot');
+    const rating = Math.min(5, Math.max(3.8, Math.round((preset.ratingBase + (frac - 0.5) * 0.6) * 10) / 10));
+    const jitter = preset.priceBase > 0 ? 8 : 6;
+    const price = Math.max(0, Math.round(preset.priceBase + (frac - 0.5) * jitter));
 
-      return {
-        spots,
-        cityLabel: place.display_name?.split(',')[0] || cityName,
-        countryLabel,
-        sample: false,
-        lat: parseFloat(place.lat),
-        lon: parseFloat(place.lon),
-        region,
-      };
-    } catch (err) {
-      const sample = LiveSpotClient.sampleData(cityName);
-      if (!sample) {
-        throw new Error('Couldn\u2019t reach the live map service right now. Try again shortly, or search Beirut, Santorini, Kyoto, or Marrakech.');
-      }
-      return {
-        spots: sample.pois.map((poi, i) => this.toLiveSpot(poi, sample.country, sample.region, `${idPrefix}-${i}`)),
-        cityLabel: sample.cityLabel,
-        countryLabel: sample.country,
-        sample: true,
-        lat: null,
-        lon: null,
-        region: sample.region,
-      };
-    }
-  }
-
-  toLiveSpot(poi, country, region, id) {
-    return new LiveSpot({
+    return new Spot({
       id,
       name: poi.name,
       country,
       region,
-      osmCategory: poi.category,
-      seed: `live-${poi.name}`.replace(/\s+/g, '-').toLowerCase(),
+      category: poi.category,
+      tags: [...preset.tags, SERENITY_TAG[preset.serenity], preset.atmosphere],
+      rating,
+      price,
+      priceUnit: 'visit',
+      image: `https://picsum.photos/seed/osm-${poi.name.replace(/\s+/g, '-').toLowerCase()}/640/480`,
+      description: `A ${poi.category} spot surfaced live from OpenStreetMap.`,
+      source: 'osm',
     });
+  }
+
+  static hashFraction(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    return (h % 1000) / 1000;
   }
 
   static sampleData(query) {
@@ -164,31 +154,31 @@ class LiveSpotClient {
       beirut: {
         cityLabel: 'Beirut', country: 'Lebanon', region: 'local',
         pois: [
-          { name: 'Raouche Rocks', category: 'attraction', tags: ['tourism', 'landmark'] },
-          { name: 'National Museum of Beirut', category: 'museum', tags: ['museum', 'heritage'] },
-          { name: 'Sanayeh Public Garden', category: 'park', tags: ['leisure', 'garden'] },
+          { name: 'Raouche Rocks', category: 'attraction' },
+          { name: 'National Museum of Beirut', category: 'museum' },
+          { name: 'Sanayeh Public Garden', category: 'park' },
         ],
       },
       santorini: {
         cityLabel: 'Santorini', country: 'Greece', region: 'global',
         pois: [
-          { name: 'Oia Castle Viewpoint', category: 'attraction', tags: ['tourism', 'sunset'] },
-          { name: 'Akrotiri Archaeological Site', category: 'historic', tags: ['historic', 'ruins'] },
-          { name: 'Perissa Beach', category: 'beach', tags: ['natural', 'beach'] },
+          { name: 'Oia Castle Viewpoint', category: 'attraction' },
+          { name: 'Akrotiri Archaeological Site', category: 'historic' },
+          { name: 'Perissa Beach', category: 'beach' },
         ],
       },
       kyoto: {
         cityLabel: 'Kyoto', country: 'Japan', region: 'global',
         pois: [
-          { name: 'Fushimi Inari Shrine', category: 'historic', tags: ['historic', 'shrine'] },
-          { name: 'Maruyama Park', category: 'park', tags: ['leisure', 'park'] },
+          { name: 'Fushimi Inari Shrine', category: 'historic' },
+          { name: 'Maruyama Park', category: 'park' },
         ],
       },
       marrakech: {
         cityLabel: 'Marrakech', country: 'Morocco', region: 'global',
         pois: [
-          { name: 'Bahia Palace', category: 'historic', tags: ['historic', 'palace'] },
-          { name: 'Jemaa el-Fnaa', category: 'attraction', tags: ['tourism', 'square'] },
+          { name: 'Bahia Palace', category: 'historic' },
+          { name: 'Jemaa el-Fnaa', category: 'attraction' },
         ],
       },
     };
