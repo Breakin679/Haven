@@ -95,7 +95,8 @@
         <div class="console__panel-inner">
           <div class="filter-group">
             <span class="filter-group__label">Type</span>
-            <div class="checklist" id="typeChecklist"><!-- built from data --></div>
+            <div class="chip-set" id="typeChips"><!-- built from data --></div>
+            <span class="filter-group__hint">Also refines live results for your last search</span>
           </div>
 
           <div class="filter-group">
@@ -159,6 +160,7 @@
 
     <!-- ============ CURATED RESULTS GRID ============ -->
     <section class="section section--results" id="browse">
+      <div class="active-filters-bar" id="activeFiltersBar" hidden></div>
       <div class="spot-grid" id="browseGrid" aria-live="polite">
         <!-- Rendered by SpotBrowser (js/search.js) -->
       </div>

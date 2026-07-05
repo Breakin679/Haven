@@ -25,7 +25,42 @@ class LiveSpotClient {
     return data[0] || null;
   }
 
-  async fetchPOIs(lat, lon) {
+  /**
+   * Maps our own Type vocabulary (wedding/vacation/honeymoon/couples/
+   * adventure/camping/family) onto which OSM node filters are worth
+   * asking Overpass for. This is the actual API integration point: picking
+   * a Type in the UI changes what gets requested from Overpass, not just
+   * how already-fetched results get sorted afterward.
+   * "vacation" is deliberately broad (matches almost everything), so
+   * selecting it — or selecting nothing — asks for all four categories.
+   */
+  static wantedOsmFilters(types) {
+    const t = types && types.size ? types : null;
+    const want = {
+      attraction: !t || t.has('adventure') || t.has('vacation'),
+      historic: !t || t.has('wedding') || t.has('vacation'),
+      park: !t || t.has('camping') || t.has('family') || t.has('vacation'),
+      beach: !t || t.has('honeymoon') || t.has('couples') || t.has('vacation'),
+    };
+    // Safety net: an unusual combination that maps to nothing should still
+    // return real results rather than an empty query.
+    if (!want.attraction && !want.historic && !want.park && !want.beach) {
+      return { attraction: true, historic: true, park: true, beach: true };
+    }
+    return want;
+  }
+
+  buildOverpassQuery(latitude, longitude, types) {
+    const want = LiveSpotClient.wantedOsmFilters(types);
+    const clauses = [];
+    if (want.attraction) clauses.push(`node["tourism"~"attraction|museum|viewpoint"](around:3000,${latitude},${longitude});`);
+    if (want.historic) clauses.push(`node["historic"](around:3000,${latitude},${longitude});`);
+    if (want.park) clauses.push(`node["leisure"~"park|beach_resort"](around:3000,${latitude},${longitude});`);
+    if (want.beach) clauses.push(`node["natural"="beach"](around:3000,${latitude},${longitude});`);
+    return `[out:json][timeout:25];(${clauses.join('\n')});out body 20;`;
+  }
+
+  async fetchPOIs(lat, lon, types) {
     // Nominatim returns lat/lon as strings, occasionally with formatting
     // quirks. Overpass QL is strict about the (around:radius,lat,lon)
     // block, so coerce to real numbers and fail loudly instead of ever
@@ -36,16 +71,7 @@ class LiveSpotClient {
       throw new Error(`Invalid coordinates passed to fetchPOIs: lat=${lat}, lon=${lon}`);
     }
 
-    const query = `
-      [out:json][timeout:25];
-      (
-        node["tourism"~"attraction|museum|viewpoint"](around:3000,${latitude},${longitude});
-        node["historic"](around:3000,${latitude},${longitude});
-        node["leisure"~"park|beach_resort"](around:3000,${latitude},${longitude});
-        node["natural"="beach"](around:3000,${latitude},${longitude});
-      );
-      out body 20;
-    `;
+    const query = this.buildOverpassQuery(latitude, longitude, types);
     const res = await fetch(OVERPASS_URL, { method: 'POST', body: query });
     if (!res.ok) throw new Error('The live map data service is unavailable right now. Please try again shortly.');
     const data = await res.json();
@@ -61,9 +87,25 @@ class LiveSpotClient {
     return null;
   }
 
+  /** Turns raw Overpass elements into LiveSpots. Reusable on its own (no
+   * geocoding) so a Type-filter change can re-query the *same* coordinates
+   * with a narrower/broader tag set instead of asking the person to search again. */
+  async spotsFromPOIs(lat, lon, countryLabel, region, idPrefix, types) {
+    const elements = await this.fetchPOIs(lat, lon, types);
+    return elements
+      .map((el, i) => {
+        const category = this.classify(el.tags);
+        if (!category) return null;
+        return this.toLiveSpot({ name: el.tags.name, category }, countryLabel, region, `${idPrefix}-${i}`);
+      })
+      .filter(Boolean);
+  }
+
   /**
-   * Returns { spots, cityLabel, countryLabel, sample } or throws with a
-   * human-readable message the UI can show directly.
+   * Returns { spots, cityLabel, countryLabel, sample, lat, lon, region } or
+   * throws with a human-readable message the UI can show directly. `lat`/
+   * `lon` are returned (when real, non-sample data) so the caller can cache
+   * them and re-query Overpass later as Type filters change.
    *
    * Always attempts the real Nominatim + Overpass calls first. Only if
    * that genuinely fails (offline, blocked, service down, rate-limited)
@@ -71,29 +113,24 @@ class LiveSpotClient {
    * of cities that sample data covers; anything else surfaces a real
    * error instead of silently pretending to work.
    */
-  async fetchLiveSpots(cityName, idPrefix) {
+  async fetchLiveSpots(cityName, idPrefix, types) {
     try {
       const place = await this.geocodeCity(cityName);
-      if (!place) return { spots: [], cityLabel: cityName, countryLabel: '', sample: false };
+      if (!place) return { spots: [], cityLabel: cityName, countryLabel: '', sample: false, lat: null, lon: null, region: null };
 
-      const elements = await this.fetchPOIs(place.lat, place.lon);
       const countryLabel = place.address?.country || '';
       const region = place.address?.country_code === 'lb' ? 'local' : 'global';
+      const spots = await this.spotsFromPOIs(place.lat, place.lon, countryLabel, region, idPrefix, types);
 
-      const spots = elements
-        .map((el, i) => {
-          const category = this.classify(el.tags);
-          if (!category) return null;
-          return this.toLiveSpot(
-            { name: el.tags.name, category },
-            countryLabel,
-            region,
-            `${idPrefix}-${i}`
-          );
-        })
-        .filter(Boolean);
-
-      return { spots, cityLabel: place.display_name?.split(',')[0] || cityName, countryLabel, sample: false };
+      return {
+        spots,
+        cityLabel: place.display_name?.split(',')[0] || cityName,
+        countryLabel,
+        sample: false,
+        lat: parseFloat(place.lat),
+        lon: parseFloat(place.lon),
+        region,
+      };
     } catch (err) {
       const sample = LiveSpotClient.sampleData(cityName);
       if (!sample) {
@@ -104,6 +141,9 @@ class LiveSpotClient {
         cityLabel: sample.cityLabel,
         countryLabel: sample.country,
         sample: true,
+        lat: null,
+        lon: null,
+        region: sample.region,
       };
     }
   }

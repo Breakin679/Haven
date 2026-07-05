@@ -43,9 +43,13 @@ class SpotBrowser {
 
     // Live API plumbing: typing a search auto-fetches matching live spots
     // from OpenStreetMap and merges them straight into the same pool.
+    // lastPlace caches the last geocoded city so a Type filter change can
+    // re-query Overpass at the same coordinates without geocoding again.
     this.liveClient = new LiveSpotClient();
     this.liveQueriesFetched = new Set();
     this.liveCounter = 0;
+    this.lastPlace = null;
+    this.refineDebounce = null;
 
     this.buildPanelOptions();
     this.bindPrimary();
@@ -60,7 +64,7 @@ class SpotBrowser {
   /* ---------------------------------------------------------------- */
 
   buildPanelOptions() {
-    this.refreshChecklist('typeChecklist', 'type', [...new Set(this.spots.flatMap((s) => s.categories))], (t) => t.charAt(0).toUpperCase() + t.slice(1));
+    this.refreshChipOptions('typeChips', 'type', [...new Set(this.spots.flatMap((s) => s.categories))], (t) => t.charAt(0).toUpperCase() + t.slice(1));
     this.refreshSelectOptions('locationSelect', [...new Set(this.spots.map((s) => s.country))].sort());
 
     const interestChips = document.getElementById('interestChips');
@@ -81,6 +85,22 @@ class SpotBrowser {
     }
   }
 
+  /** Appends only the chips not already present, so an in-progress multi-selection survives re-runs (e.g. after live spots are merged in). */
+  refreshChipOptions(containerId, role, values, labelFor) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const existing = new Set([...container.querySelectorAll('.chip')].map((c) => c.dataset.value));
+    values.filter((v) => !existing.has(v)).forEach((v) => {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.type = 'button';
+      chip.dataset.role = role;
+      chip.dataset.value = v;
+      chip.textContent = labelFor(v);
+      container.appendChild(chip);
+    });
+  }
+
   /** Appends only the options not already present, so an in-progress selection survives re-runs (e.g. after live spots are merged in). */
   refreshSelectOptions(selectId, values) {
     const select = document.getElementById(selectId);
@@ -91,23 +111,6 @@ class SpotBrowser {
       opt.value = v;
       opt.textContent = v;
       select.appendChild(opt);
-    });
-  }
-
-  /** Appends only the options not already present, so existing checked state and user selections survive re-runs (e.g. after live spots are merged in). */
-  refreshChecklist(containerId, role, values, labelFor) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const existing = new Set([...container.querySelectorAll('input')].map((i) => i.value));
-    values.filter((v) => !existing.has(v)).forEach((v) => {
-      const label = document.createElement('label');
-      const input = document.createElement('input');
-      input.type = 'checkbox';
-      input.value = v;
-      input.dataset.role = role;
-      label.appendChild(input);
-      label.appendChild(document.createTextNode(` ${labelFor(v)}`));
-      container.appendChild(label);
     });
   }
 
@@ -192,13 +195,18 @@ class SpotBrowser {
       });
     }
 
-    const typeList = document.getElementById('typeChecklist');
-    if (typeList) {
-      typeList.addEventListener('change', (e) => {
-        const cb = e.target.closest('input[data-role="type"]');
-        if (!cb) return;
-        cb.checked ? this.state.types.add(cb.value) : this.state.types.delete(cb.value);
-        this.resetAndRender();
+    // Type is multi-select chips, same interaction as Interests — and,
+    // unlike every other facet, it also re-queries the live API: changing
+    // which types are selected changes which OSM node filters Overpass is
+    // asked for, not just how results already on screen are sorted.
+    const typeChips = document.getElementById('typeChips');
+    if (typeChips) {
+      typeChips.addEventListener('click', (e) => {
+        const chip = e.target.closest('.chip');
+        if (!chip) return;
+        chip.classList.toggle('is-active');
+        chip.classList.contains('is-active') ? this.state.types.add(chip.dataset.value) : this.state.types.delete(chip.dataset.value);
+        this.onTypesChanged();
       });
     }
 
@@ -262,6 +270,7 @@ class SpotBrowser {
     if (applyBtn && document.getElementById('filtersPanel')) {
       applyBtn.addEventListener('click', () => {
         this.resetAndRender();
+        this.refineLiveForFilters();
         document.getElementById('filtersPanel').classList.remove('is-open');
         document.getElementById('filtersToggle')?.classList.remove('is-open');
       });
@@ -291,7 +300,7 @@ class SpotBrowser {
     this.state.serenity = 'any';
     this.state.atmosphere = 'any';
 
-    document.querySelectorAll('input[data-role="type"]').forEach((cb) => { cb.checked = false; });
+    document.querySelectorAll('#typeChips .chip').forEach((c) => c.classList.remove('is-active'));
     const locationSelect = document.getElementById('locationSelect');
     if (locationSelect) locationSelect.value = '';
     document.querySelectorAll('#interestChips .chip').forEach((c) => c.classList.remove('is-active'));
@@ -310,6 +319,7 @@ class SpotBrowser {
     if (priceMax) priceMax.value = '';
 
     this.resetAndRender();
+    this.refineLiveForFilters();
   }
 
   /* ---------------------------------------------------------------- */
@@ -438,7 +448,11 @@ class SpotBrowser {
     this.setLiveStatus(`<div class="spinner spinner--inline"></div> Looking for live spots in "${query}"…`);
 
     try {
-      const { spots, cityLabel, countryLabel, sample } = await this.liveClient.fetchLiveSpots(query, `live-${this.liveCounter++}`);
+      const { spots, cityLabel, countryLabel, sample, lat, lon, region } = await this.liveClient.fetchLiveSpots(query, `live-${this.liveCounter++}`, this.state.types);
+
+      if (lat != null && lon != null) {
+        this.lastPlace = { lat, lon, cityLabel, countryLabel, region };
+      }
 
       if (!spots.length) {
         this.setLiveStatus('');
@@ -459,7 +473,133 @@ class SpotBrowser {
     }
   }
 
+  /**
+   * The actual "connected with the API beyond location search" piece:
+   * whenever Type filters change, if a place has already been searched,
+   * re-query Overpass at those same coordinates with the newly-selected
+   * category set and merge in whatever's new. Debounced so rapidly
+   * toggling several type chips only fires one request.
+   */
+  refineLiveForFilters() {
+    clearTimeout(this.refineDebounce);
+    this.refineDebounce = setTimeout(async () => {
+      if (!this.lastPlace) return;
+      const { lat, lon, cityLabel, countryLabel, region } = this.lastPlace;
+
+      this.setLiveStatus(`<div class="spinner spinner--inline"></div> Refining live spots for "${cityLabel}"…`);
+      try {
+        const spots = await this.liveClient.spotsFromPOIs(lat, lon, countryLabel, region, `live-${this.liveCounter++}`, this.state.types);
+        const added = spots.length ? this.addLiveSpots(spots) : 0;
+        const place = countryLabel ? `${cityLabel}, ${countryLabel}` : cityLabel;
+        this.setLiveStatus(added
+          ? `<i class="bi bi-broadcast"></i> ${added} new live match${added === 1 ? '' : 'es'} for ${place} with these filters.`
+          : `<i class="bi bi-broadcast"></i> Live spots for ${place} already reflect these filters.`);
+      } catch (err) {
+        this.setLiveStatus('');
+      }
+    }, 400);
+  }
+
+  onTypesChanged() {
+    this.resetAndRender();
+    this.refineLiveForFilters();
+  }
+
+  static SERENITY_LABELS = { high: 'Quiet & serene', medium: 'Balanced', low: 'Lively & social' };
+  static ATMOSPHERE_LABELS = { historical: 'Historical', rustic: 'Rustic', modern: 'Modern', luxury: 'Luxury', cozy: 'Cozy' };
+
+  renderActiveFilters() {
+    const bar = document.getElementById('activeFiltersBar');
+    if (!bar) return;
+    const s = this.state;
+    const pills = [];
+
+    s.types.forEach((t) => pills.push({
+      label: t.charAt(0).toUpperCase() + t.slice(1),
+      remove: () => {
+        s.types.delete(t);
+        document.querySelector(`#typeChips .chip[data-value="${t}"]`)?.classList.remove('is-active');
+        this.onTypesChanged();
+      },
+    }));
+
+    s.interests.forEach((t) => pills.push({
+      label: t.replace('-', ' '),
+      remove: () => {
+        s.interests.delete(t);
+        document.querySelector(`#interestChips .chip[data-value="${t}"]`)?.classList.remove('is-active');
+        this.resetAndRender();
+      },
+    }));
+
+    if (s.location !== 'all') pills.push({
+      label: s.location,
+      remove: () => {
+        s.location = 'all';
+        const sel = document.getElementById('locationSelect');
+        if (sel) sel.value = '';
+        this.resetAndRender();
+      },
+    });
+
+    if (s.minRating > 0) pills.push({
+      label: `${s.minRating.toFixed(1)}+ ★`,
+      remove: () => {
+        s.minRating = 0;
+        const slider = document.getElementById('ratingSlider');
+        const label = document.getElementById('ratingValue');
+        if (slider) slider.value = '0';
+        if (label) label.textContent = 'Any';
+        this.resetAndRender();
+      },
+    });
+
+    if (s.serenity !== 'any') pills.push({
+      label: SpotBrowser.SERENITY_LABELS[s.serenity] || s.serenity,
+      remove: () => {
+        s.serenity = 'any';
+        document.querySelectorAll('#serenityChips .chip').forEach((c, i) => c.classList.toggle('is-active', i === 0));
+        this.resetAndRender();
+      },
+    });
+
+    if (s.atmosphere !== 'any') pills.push({
+      label: SpotBrowser.ATMOSPHERE_LABELS[s.atmosphere] || s.atmosphere,
+      remove: () => {
+        s.atmosphere = 'any';
+        document.querySelectorAll('#atmosphereChips .chip').forEach((c, i) => c.classList.toggle('is-active', i === 0));
+        this.resetAndRender();
+      },
+    });
+
+    if (s.priceMin !== null || s.priceMax !== null) pills.push({
+      label: `$${s.priceMin ?? 0}–${s.priceMax ?? '∞'}`,
+      remove: () => {
+        s.priceMin = null;
+        s.priceMax = null;
+        const min = document.getElementById('priceMin');
+        const max = document.getElementById('priceMax');
+        if (min) min.value = '';
+        if (max) max.value = '';
+        this.resetAndRender();
+      },
+    });
+
+    if (!pills.length) {
+      bar.innerHTML = '';
+      bar.hidden = true;
+      return;
+    }
+    bar.hidden = false;
+    bar.innerHTML = pills.map((p, i) => `<button class="active-filter-pill" type="button" data-i="${i}">${p.label} <i class="bi bi-x"></i></button>`).join('');
+    bar.querySelectorAll('.active-filter-pill').forEach((btn, i) => {
+      btn.addEventListener('click', () => pills[i].remove());
+    });
+  }
+
   render() {
+    this.renderActiveFilters();
+
     // Cap the working result set to the top 30 best matches; Load More only
     // ever reveals more of *this* pool, 10 at a time.
     const results = this.processedList.slice(0, this.maxResults);

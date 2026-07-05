@@ -1109,74 +1109,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 
 .checklist input[type="checkbox"] { accent-color: var(--rust); width: 15px; height: 15px; cursor: pointer; }
 
-/* Full-width dropdown variant used inside the filter panel (vs. the
-   auto-width one in the console's primary row, e.g. Sort). */
-.select-wrap--block { width: 100%; }
-.console .select-wrap.select-wrap--block select {
-  width: 100%;
-  height: 42px;
-  padding: 0 2.2rem 0 1rem;
-  border-radius: 10px;
-  border: 1px solid var(--sand-deep);
-  background: var(--sand);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  text-transform: none;
-  letter-spacing: normal;
-  color: var(--charcoal);
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-}
-.console .select-wrap.select-wrap--block select:focus { outline: none; border-color: var(--gold); }
-
-.filter-group__value {
-  float: right;
-  color: var(--charcoal);
-  text-transform: none;
-  letter-spacing: normal;
-  font-weight: 600;
-}
-
-.rating-slider {
-  width: 100%;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--sand-deep);
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-  margin-top: 0.4rem;
-}
-
-.rating-slider::-webkit-slider-thumb {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--rust);
-  border: 2px solid var(--white);
-  box-shadow: 0 1px 4px rgba(32, 36, 31, 0.35);
-  cursor: pointer;
-}
-
-.rating-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--rust);
-  border: 2px solid var(--white);
-  box-shadow: 0 1px 4px rgba(32, 36, 31, 0.35);
-  cursor: pointer;
-}
-
-.rating-slider::-moz-range-track {
-  height: 4px;
-  border-radius: 999px;
-  background: var(--sand-deep);
-}
-
 .price-inputs { display: flex; align-items: center; gap: 0.5rem; }
 
 .price-inputs input {
@@ -1266,21 +1198,65 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 }
 
 /* =========================================================
-   LIVE STATUS — small inline line under the search console that
-   reports on the automatic OpenStreetMap fetch triggered by search.
+   LIVE SEARCH STRIP — merges results straight into the grid above,
+   no separate section/pagination of its own.
    ========================================================= */
 
-.live-status {
-  margin: 0.6rem 0 0;
+.live-search {
+  background: var(--white);
+  border: 1px dashed var(--sand-deep);
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+}
+
+.live-search__label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex: 1 1 220px;
+}
+
+.live-search__label i {
+  font-size: 1.2rem;
+  color: var(--rust);
+  margin-top: 0.15rem;
+}
+
+.live-search__label strong { display: block; font-family: var(--font-display); font-size: 1rem; color: var(--ink); }
+.live-search__label span { font-size: 0.82rem; color: #6b7168; }
+
+.live-search__form {
+  display: flex;
+  gap: 0.6rem;
+  flex: 1 1 320px;
+}
+
+.live-search__form input {
+  flex: 1;
+  height: 42px;
+  padding: 0 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--sand-deep);
+  background: var(--sand);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+}
+
+.live-search__form input:focus { outline: none; border-color: var(--gold); background: var(--white); }
+
+.live-search__status {
+  flex-basis: 100%;
+  margin: 0;
   font-family: var(--font-mono);
   font-size: 0.72rem;
   color: #8a8f84;
-  min-height: 1.1em;
 }
 
-.live-status:empty { margin: 0; }
-.live-status i { color: var(--rust); margin-right: 0.3rem; }
-.live-status .spinner--inline { vertical-align: -2px; margin-right: 0.35rem; }
+.live-search__status i { color: var(--rust); margin-right: 0.3rem; }
 
 /* "Live" ribbon on cards merged in from the API */
 .spot-card__live {
@@ -1327,3 +1303,174 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* =========================================================
+   COMMUNITY PAGE — submit-a-venue + contact + FAQ
+   ========================================================= */
+
+.form-card {
+  background: var(--white);
+  border: 1px solid var(--sand-deep);
+  border-radius: 16px;
+  padding: 2rem;
+}
+
+.form-card__note {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  background: var(--sand);
+  border: 1px dashed var(--sand-deep);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.75rem;
+  font-size: 0.85rem;
+  color: #4b514a;
+}
+
+.form-card__note i { color: var(--rust); font-size: 1.05rem; margin-top: 0.1rem; }
+
+.field { margin-bottom: 1.35rem; }
+
+.field label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rust);
+  margin-bottom: 0.5rem;
+}
+
+.field input[type="text"],
+.field input[type="email"],
+.field input[type="tel"],
+.field input[type="url"],
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--sand-deep);
+  background: var(--sand);
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  color: var(--charcoal);
+}
+
+.field textarea { resize: vertical; min-height: 110px; }
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--gold);
+  background: var(--white);
+}
+
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+
+@media (max-width: 560px) { .field-row { grid-template-columns: 1fr; } }
+
+.field .invalid-feedback { font-size: 0.78rem; color: var(--rust); margin-top: 0.35rem; }
+
+.was-validated .field input:invalid,
+.was-validated .field select:invalid,
+.was-validated .field textarea:invalid { border-color: var(--rust); }
+
+.was-validated .chip-set.is-required-empty { outline: 1px solid var(--rust); border-radius: 12px; }
+
+.form-success {
+  display: none;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: rgba(124, 152, 133, 0.16);
+  border: 1px solid var(--sage);
+  border-radius: 10px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  color: #2f4633;
+}
+
+.form-success.is-visible { display: flex; }
+.form-success i { color: var(--sage); font-size: 1.2rem; margin-top: 0.1rem; }
+
+/* --- Contact info + FAQ layout --- */
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) { .contact-grid { grid-template-columns: 1fr; } }
+
+.contact-info-list { display: flex; flex-direction: column; gap: 1.1rem; margin: 1.5rem 0 0; }
+
+.contact-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  background: var(--white);
+  border: 1px solid var(--sand-deep);
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+}
+
+.contact-info-item i {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+}
+
+.contact-info-item strong { display: block; font-family: var(--font-display); font-size: 0.98rem; color: var(--ink); }
+.contact-info-item span { font-size: 0.85rem; color: #6b7168; }
+
+.social-row { display: flex; gap: 0.6rem; margin-top: 1.5rem; }
+
+.social-row a {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--sand-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.social-row a:hover { background: var(--ink); color: var(--white); }
+
+/* --- FAQ accordion (Bootstrap component, re-skinned to match the brand) --- */
+
+.faq .accordion-item {
+  background: var(--white);
+  border: 1px solid var(--sand-deep);
+  border-radius: 10px !important;
+  margin-bottom: 0.85rem;
+  overflow: hidden;
+}
+
+.faq .accordion-button {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--white);
+  padding: 1.1rem 1.3rem;
+  box-shadow: none !important;
+}
+
+.faq .accordion-button:not(.collapsed) { background: var(--sand); color: var(--rust); }
+.faq .accordion-button::after { filter: sepia(1) saturate(4) hue-rotate(0deg); }
+.faq .accordion-body { font-size: 0.9rem; color: #4b514a; padding: 0 1.3rem 1.3rem; }

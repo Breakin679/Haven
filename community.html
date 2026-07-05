@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Community — Haven</title>
+  <meta name="description" content="Submit a venue to Haven, get in touch with the team, or check the FAQ.">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" aria-label="Primary navigation">
+    <nav class="sidebar__nav">
+      <a class="sidebar__link" href="index.html">
+        <i class="bi bi-house-heart"></i>
+        <span class="sidebar__label">Home</span>
+      </a>
+      <a class="sidebar__link" href="search.html">
+        <i class="bi bi-search"></i>
+        <span class="sidebar__label">Discover</span>
+      </a>
+      <a class="sidebar__link" href="community.html">
+        <i class="bi bi-people"></i>
+        <span class="sidebar__label">Community</span>
+      </a>
+    </nav>
+
+    <div class="sidebar__foot">
+      <button class="sidebar__toggle" type="button" aria-label="Expand navigation" aria-expanded="false">
+        <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN CONTENT ============ -->
+  <div class="app-main">
+
+    <header class="topbar">
+      <a class="topbar__home" href="index.html" aria-label="Haven home">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="24" cy="24" r="21" stroke="#C9A227" stroke-width="1.5" stroke-dasharray="3 3"/>
+          <circle cx="24" cy="24" r="15" stroke="#0F3D3E" stroke-width="1.2"/>
+          <path d="M16 26L21 31L32 18" stroke="#0F3D3E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Haven
+      </a>
+      <a class="btn btn--ghost btn--sm" href="search.html"><i class="bi bi-search"></i> Discover Spots</a>
+    </header>
+
+    <!-- ============ PAGE HEAD ============ -->
+    <section class="page-head">
+      <span class="eyebrow">Community</span>
+      <h1>Submit a spot, or say hello.</h1>
+      <p>Know a venue Haven is missing? Tell us about it below. Have a question first? Scroll down for how to reach us and a quick FAQ.</p>
+    </section>
+
+    <!-- ============ SUBMIT A VENUE ============ -->
+    <section class="section" id="submit-venue">
+      <div class="section__head">
+        <div>
+          <span class="eyebrow">Recommend a Spot</span>
+          <h2>Submit a venue</h2>
+        </div>
+      </div>
+
+      <div class="form-card" style="max-width:760px;">
+        <div class="form-card__note">
+          <i class="bi bi-info-circle"></i>
+          <span>This is a demo form. Haven doesn't have a database connected yet, so submissions aren't actually saved anywhere — this only simulates what submitting would feel like.</span>
+        </div>
+
+        <div class="form-success" id="venueSuccess"></div>
+
+        <form id="venueForm" novalidate>
+          <div class="field">
+            <label for="venueName">Venue name</label>
+            <input type="text" id="venueName" name="venueName" required>
+            <div class="invalid-feedback">Let us know what it's called.</div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="submitterName">Your name</label>
+              <input type="text" id="submitterName" name="submitterName" required>
+              <div class="invalid-feedback">We'd like to know who's recommending it.</div>
+            </div>
+            <div class="field">
+              <label for="submitterEmail">Your email</label>
+              <input type="email" id="submitterEmail" name="submitterEmail" required>
+              <div class="invalid-feedback">A valid email helps us follow up.</div>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="venueCity">City</label>
+              <input type="text" id="venueCity" name="venueCity" required>
+              <div class="invalid-feedback">Which city or town is it in?</div>
+            </div>
+            <div class="field">
+              <label for="venueCountry">Country</label>
+              <input type="text" id="venueCountry" name="venueCountry" required>
+              <div class="invalid-feedback">Which country is it in?</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Best suited for <span style="text-transform:none;color:#8a8f84;">(pick at least one)</span></label>
+            <div class="chip-set" id="venueCategoryChips">
+              <button class="chip" type="button" data-value="wedding">Wedding</button>
+              <button class="chip" type="button" data-value="vacation">Vacation</button>
+              <button class="chip" type="button" data-value="honeymoon">Honeymoon</button>
+              <button class="chip" type="button" data-value="couples">Couples</button>
+              <button class="chip" type="button" data-value="adventure">Adventure</button>
+              <button class="chip" type="button" data-value="camping">Camping</button>
+              <button class="chip" type="button" data-value="family">Family</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="venuePrice">Estimated price range</label>
+            <select id="venuePrice" name="venuePrice" required>
+              <option value="" disabled selected>Choose one…</option>
+              <option value="under-100">Under $100 / night</option>
+              <option value="100-1000">$100 – $1,000</option>
+              <option value="1000-5000">$1,000 – $5,000</option>
+              <option value="5000-plus">$5,000+</option>
+            </select>
+            <div class="invalid-feedback">Give us a rough range.</div>
+          </div>
+
+          <div class="field">
+            <label for="venueWebsite">Website or Instagram <span style="text-transform:none;color:#8a8f84;">(optional)</span></label>
+            <input type="url" id="venueWebsite" name="venueWebsite" placeholder="https://…">
+          </div>
+
+          <div class="field">
+            <label for="venueWhy">Why should Haven feature this spot?</label>
+            <textarea id="venueWhy" name="venueWhy" required minlength="20" placeholder="What makes it worth the trip?"></textarea>
+            <div class="invalid-feedback">A couple of sentences is plenty (20+ characters).</div>
+          </div>
+
+          <button class="btn btn--primary" type="submit"><i class="bi bi-send"></i> Submit Venue</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ============ CONTACT ============ -->
+    <section class="section" id="contact">
+      <div class="section__head">
+        <div>
+          <span class="eyebrow">Get in Touch</span>
+          <h2>Contact us</h2>
+        </div>
+      </div>
+
+      <div class="contact-grid">
+        <div>
+          <p style="color:#4b514a;margin-top:0;">Prefer to skip the form? Reach us directly:</p>
+          <div class="contact-info-list">
+            <div class="contact-info-item">
+              <i class="bi bi-telephone"></i>
+              <div><strong>+961 1 456 789</strong><span>Sun–Thu, 9am–6pm Beirut time</span></div>
+            </div>
+            <div class="contact-info-item">
+              <i class="bi bi-envelope"></i>
+              <div><strong>hello@havenspots.com</strong><span>General questions &amp; venue listings</span></div>
+            </div>
+            <div class="contact-info-item">
+              <i class="bi bi-geo-alt"></i>
+              <div><strong>Beirut, Lebanon</strong><span>Remote-first team</span></div>
+            </div>
+            <div class="contact-info-item">
+              <i class="bi bi-clock"></i>
+              <div><strong>1–2 business days</strong><span>Typical response time</span></div>
+            </div>
+          </div>
+          <div class="social-row">
+            <a href="#" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+            <a href="#" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+            <a href="#" aria-label="X (Twitter)"><i class="bi bi-twitter-x"></i></a>
+          </div>
+        </div>
+
+        <div class="form-card">
+          <div class="form-success" id="contactSuccess"></div>
+          <form id="contactForm" novalidate>
+            <div class="field-row">
+              <div class="field">
+                <label for="contactName">Name</label>
+                <input type="text" id="contactName" name="contactName" required>
+                <div class="invalid-feedback">Please tell us your name.</div>
+              </div>
+              <div class="field">
+                <label for="contactEmail">Email</label>
+                <input type="email" id="contactEmail" name="contactEmail" required>
+                <div class="invalid-feedback">A valid email helps us reply.</div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="contactSubject">Subject</label>
+              <select id="contactSubject" name="contactSubject" required>
+                <option value="" disabled selected>Choose one…</option>
+                <option value="general">General question</option>
+                <option value="listing">Listing my venue</option>
+                <option value="partnership">Partnership</option>
+                <option value="bug">Report an issue</option>
+                <option value="other">Other</option>
+              </select>
+              <div class="invalid-feedback">Pick what this is about.</div>
+            </div>
+
+            <div class="field">
+              <label for="contactMessage">Message</label>
+              <textarea id="contactMessage" name="contactMessage" required minlength="10" placeholder="How can we help?"></textarea>
+              <div class="invalid-feedback">Let us know a bit more (10+ characters).</div>
+            </div>
+
+            <button class="btn btn--primary" type="submit"><i class="bi bi-send"></i> Send Message</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FAQ ============ -->
+    <section class="section" id="faq">
+      <div class="section__head">
+        <div>
+          <span class="eyebrow">Before You Ask</span>
+          <h2>Frequently asked questions</h2>
+        </div>
+      </div>
+
+      <div class="faq accordion" id="faqAccordion" style="max-width:820px;">
+        <div class="accordion-item">
+          <h3 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+              Is Haven free to use?
+            </button>
+          </h3>
+          <div id="faq1" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion">
+            <div class="accordion-body">Yes — browsing, filtering, and searching every spot on Haven is completely free. There's no account required to look around.</div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h3 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+              How do I list my venue on Haven?
+            </button>
+          </h3>
+          <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+            <div class="accordion-body">Use the "Submit a Venue" form above. Our team reviews every submission before it's added to the curated collection.</div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h3 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+              Can I book a venue directly through Haven?
+            </button>
+          </h3>
+          <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+            <div class="accordion-body">Not yet. Haven is a discovery tool — once you find a spot you like, we point you to the right way to get in touch with it directly.</div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h3 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq4">
+              Which regions does Haven cover?
+            </button>
+          </h3>
+          <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+            <div class="accordion-body">Our curated collection focuses on Lebanon (Local) alongside a growing set of global destinations. Use the Discover page's live search to pull up spots anywhere else in the world.</div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h3 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq5">
+              How is pricing shown on each listing?
+            </button>
+          </h3>
+          <div id="faq5" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+            <div class="accordion-body">Prices reflect an average cost — per night for vacation stays, or per event for wedding and celebration venues — based on typical rates, not a live quote.</div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h3 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq6">
+              I found an incorrect listing — how do I report it?
+            </button>
+          </h3>
+          <div id="faq6" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+            <div class="accordion-body">Use the contact form above and choose "Report an issue" as the subject — include the venue name and what looked off.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FOOTER ============ -->
+    <footer class="site-footer">
+      <div class="site-footer__grid">
+        <div>
+          <div class="site-footer__brand">Haven</div>
+          <p>A spot finder for weddings, vacations, and everything worth planning around — local and global.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="search.html">Discover</a></li>
+            <li><a href="community.html">Community</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Categories</h4>
+          <ul>
+            <li><a href="search.html">Weddings</a></li>
+            <li><a href="search.html">Vacations</a></li>
+            <li><a href="search.html">Budget spots</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Project</h4>
+          <ul>
+            <li><a href="community.html#submit-venue">Submit a venue</a></li>
+            <li><a href="community.html#contact">Contact</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <span>&copy; 2026 Haven — Full Stack Development Final Project</span>
+        <span>Lebanese University · Faculty of Engineering, Branch 2</span>
+      </div>
+    </footer>
+  </div>
+
+  <button class="back-to-top" id="backToTop" aria-label="Back to top"><i class="bi bi-arrow-up"></i></button>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script src="js/community.js"></script>
+  <script src="js/backtotop.js"></script>
+</body>
+</html>
