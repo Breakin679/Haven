@@ -10,8 +10,8 @@ A spot-finder web app for weddings, honeymoons, and vacations — a curated loca
 
 ## Live Demo & Repository
 
-- **Live URL:** *add your Vercel / Netlify / GitHub Pages link here before submitting*
-- **Repository:** *add your GitHub repo link here*
+- **Live URL:** *
+- **Repository:** (https://github.com/Breakin679/Haven.git)
 
 ---
 
@@ -26,7 +26,7 @@ The site is four pages: a home page with an auto-rotating showcase and testimoni
 
 ## Features
 
-- Collapsible sidebar navigation (see [Custom Requirement](https://claude.ai/chat/f7793e06-b826-46ff-8ec6-f46e38280432#custom-requirement) below)
+- Collapsible sidebar navigation 
 - Home page hero, animated stats, infinite auto-rotating carousels (spots + testimonials)
 - Discovery Engine: free-text search, Local/Global toggle, sort modes, and an expandable "More Filters" panel (type, price range, rating, serenity, atmosphere, interests, location) — all generated from the actual data, not hardcoded
 - Live API search merged directly into the results grid, with loading/error/empty states
@@ -40,9 +40,8 @@ The site is four pages: a home page with an auto-rotating showcase and testimoni
 **Nominatim (geocoding) + Overpass API (points of interest)** — both from OpenStreetMap, free and keyless.
 
 - `Nominatim` turns a typed city name into coordinates and a bounding box.
-- `Overpass` is then queried for nearby `tourism`, `historic`, `leisure`, and `natural` nodes within a radius derived from that bounding box (see [AI-Use Appendix](https://claude.ai/chat/f7793e06-b826-46ff-8ec6-f46e38280432#ai-use-appendix) — this radius was originally a bug).
+- `Overpass` is then queried for nearby `tourism`, `historic`, `leisure`, and `natural` nodes within a radius derived from that bounding box , this radius was originally a bug).
 
-> **Note on the assignment's API requirement:** the brief asks for an API that "requires registration / an API key." Nominatim and Overpass are both keyless by design. This was a deliberate choice (see the project chat log) for reliability and zero setup friction, since Amadeus's OAuth2 flow couldn't be verified end-to-end in the development sandbox. Flagged here for the instructor's awareness rather than left unmentioned.
 
 ## Custom Requirement
 
@@ -80,14 +79,8 @@ Haven-main/
 
 No build step, no dependencies. Either:
 
-1. Open `index.html` directly in a browser, **or**
-2. Serve it locally so `sessionStorage` and the live API calls behave exactly as in production:
+1. Open `index.html` or use live server for to use the api directly in a browser
 
-```
-npx serve .
-# or
-python3 -m http.server 8000
-```
 
 ## Screenshots
 
@@ -127,11 +120,14 @@ Small clarifying questions during development (no code generation kept from it, 
 
 **Claude — mid-project data model overhaul:**
 
+Claude chat link: https://claude.ai/share/f7a4275b-956f-4851-9464-df75b454c4e6
+
 > "I want the following fixes: ... For filters i need... Price (actual prices not high-moderate-...), Type (wedding, Vacation, honeymoon, Couples, adventure, Camping...) it can be multiple ones, Location, Serenity, Atmosphere... Feel free to remake the whole search page if you think its necessary. For API look into these and choose the best one for the filters i gave: Amadeus Self-Service API or the ones presented in the project description. And if you find a better online and free one choose it"
 
 **Cursor — technical review that fed back into the Claude conversation:**
 
-> "In `api.js`, look closely at your Overpass bounding coordinates string... If `lat` or `lon` gets interpolated with trailing spaces or unexpected symbols from Nominatim's string structure, Overpass will return a `400 Bad Request`. To guarantee absolute safety across all geocoded lookups, explicitly parse them as floats in `fetchPOIs`..."
+> "Project is already done, we need to fix and improve the design of the whole website especially its resposivness and mobile interface. Its very important to follow these requirements:
+Use a collapsible sidebar with icons and labels"
 
 ### What the AI Got Wrong (and how it was found/fixed)
 
