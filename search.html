@@ -66,12 +66,6 @@
           <input type="search" id="browseSearch" placeholder="Search by name, country, or city (e.g. Beirut, Santorini)…" aria-label="Search spots by name, country, or city">
         </div>
 
-        <div class="toggle-group" id="browseRegionToggle" role="group" aria-label="Filter by region">
-          <button class="toggle-group__btn is-active" data-filter="all" type="button">All</button>
-          <button class="toggle-group__btn" data-filter="local" type="button">Local</button>
-          <button class="toggle-group__btn" data-filter="global" type="button">Global</button>
-        </div>
-
         <div class="select-wrap">
           <select id="sortSelect" aria-label="Sort results">
             <option value="best">Best Match</option>
@@ -113,30 +107,8 @@
           </div>
 
           <div class="filter-group">
-            <span class="filter-group__label">Serenity</span>
-            <div class="chip-set" id="serenityChips">
-              <button class="chip is-active" type="button" data-value="any">Any</button>
-              <button class="chip" type="button" data-value="high">Quiet</button>
-              <button class="chip" type="button" data-value="medium">Moderate</button>
-              <button class="chip" type="button" data-value="low">Lively</button>
-            </div>
-          </div>
-
-          <div class="filter-group">
-            <span class="filter-group__label">Atmosphere</span>
-            <div class="chip-set" id="atmosphereChips">
-              <button class="chip is-active" type="button" data-value="any">Any</button>
-              <button class="chip" type="button" data-value="historical">Historical</button>
-              <button class="chip" type="button" data-value="rustic">Rustic</button>
-              <button class="chip" type="button" data-value="modern">Modern</button>
-              <button class="chip" type="button" data-value="luxury">Luxury</button>
-              <button class="chip" type="button" data-value="cozy">Cozy</button>
-            </div>
-          </div>
-
-          <div class="filter-group">
-            <span class="filter-group__label">Interests</span>
-            <div class="chip-set" id="interestChips"><!-- built from data --></div>
+            <span class="filter-group__label">Interests &amp; Vibe</span>
+            <div class="chip-set" id="interestChips"><!-- built from data, includes atmosphere + serenity as tags --></div>
           </div>
 
           <div class="filter-group">

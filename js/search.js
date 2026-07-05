@@ -13,14 +13,11 @@ class SpotBrowser {
     DestinationCatalog.persist(this.spots); // so details.html can look up curated spots even if home was never visited
 
     this.state = {
-      region: 'all',
       query: '',
       types: new Set(),
       priceMin: null,
       priceMax: null,
       minRating: 0,
-      serenity: 'any',
-      atmosphere: 'any',
       interests: new Set(),
       location: 'all',
       sort: 'best',
@@ -59,8 +56,8 @@ class SpotBrowser {
     const interestChips = document.getElementById('interestChips');
     if (interestChips) {
       const freq = {};
-      this.spots.forEach((s) => s.tags.forEach((t) => { freq[t] = (freq[t] || 0) + 1; }));
-      const topTags = Object.keys(freq).sort((a, b) => freq[b] - freq[a]).slice(0, 10);
+      this.spots.forEach((s) => SpotBrowser.interestPool(s).forEach((t) => { freq[t] = (freq[t] || 0) + 1; }));
+      const topTags = Object.keys(freq).sort((a, b) => freq[b] - freq[a]).slice(0, 12);
       const existing = new Set([...interestChips.querySelectorAll('.chip')].map((c) => c.dataset.value));
       topTags.filter((t) => !existing.has(t)).forEach((t) => {
         const chip = document.createElement('button');
@@ -68,10 +65,23 @@ class SpotBrowser {
         chip.type = 'button';
         chip.dataset.role = 'interest';
         chip.dataset.value = t;
-        chip.textContent = t.replace('-', ' ');
+        chip.textContent = SpotBrowser.interestLabel(t);
         interestChips.appendChild(chip);
       });
     }
+  }
+
+  /**
+   * Serenity and atmosphere used to be their own filter groups, but they
+   * overlapped heavily with "Interests" (both are really just vibe
+   * descriptors). They now live in the same tag pool so a single
+   * Interests chip set covers "quiet", "luxury", "beachfront", etc.
+   * without three separate near-duplicate controls.
+   */
+  static interestPool(spot) { return [...spot.tags, spot.atmosphere, spot.serenity].filter(Boolean); }
+
+  static interestLabel(value) {
+    return SpotBrowser.SERENITY_LABELS[value] || SpotBrowser.ATMOSPHERE_LABELS[value] || value.replace(/-/g, ' ');
   }
 
   refreshChipOptions(containerId, values, labelFor) {
@@ -124,18 +134,6 @@ class SpotBrowser {
       });
     }
 
-    const regionToggle = document.getElementById('browseRegionToggle');
-    if (regionToggle) {
-      regionToggle.querySelectorAll('.toggle-group__btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          regionToggle.querySelectorAll('.toggle-group__btn').forEach((b) => b.classList.remove('is-active'));
-          btn.classList.add('is-active');
-          this.state.region = btn.dataset.filter;
-          this.resetAndRender();
-        });
-      });
-    }
-
     const sortSelect = document.getElementById('sortSelect');
     if (sortSelect) sortSelect.addEventListener('change', () => { this.state.sort = sortSelect.value; this.render(); });
 
@@ -154,6 +152,7 @@ class SpotBrowser {
       loadMoreBtn.addEventListener('click', () => {
         this.visibleCount = Math.min(this.visibleCount + this.pageSize, this.maxResults);
         this.render();
+        this.fetchLiveForCurrentQuery();
       });
     }
   }
@@ -188,9 +187,6 @@ class SpotBrowser {
         this.resetAndRender();
       });
     }
-
-    this.bindChipGroup('serenityChips', (value) => { this.state.serenity = value; });
-    this.bindChipGroup('atmosphereChips', (value) => { this.state.atmosphere = value; });
 
     const ratingSlider = document.getElementById('ratingSlider');
     const ratingValueEl = document.getElementById('ratingValue');
@@ -233,19 +229,6 @@ class SpotBrowser {
     }
   }
 
-  bindChipGroup(containerId, onSelect) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.addEventListener('click', (e) => {
-      const chip = e.target.closest('.chip');
-      if (!chip) return;
-      container.querySelectorAll('.chip').forEach((c) => c.classList.remove('is-active'));
-      chip.classList.add('is-active');
-      onSelect(chip.dataset.value);
-      this.resetAndRender();
-    });
-  }
-
   /* ---------------------------------------------------------------- */
   /* Filtering, ranking, sorting                                        */
   /* ---------------------------------------------------------------- */
@@ -258,8 +241,6 @@ class SpotBrowser {
     if (this.state.location !== 'all') n += 1;
     if (this.state.priceMin !== null || this.state.priceMax !== null) n += 1;
     if (this.state.minRating > 0) n += 1;
-    if (this.state.serenity !== 'any') n += 1;
-    if (this.state.atmosphere !== 'any') n += 1;
     return n;
   }
 
@@ -271,7 +252,6 @@ class SpotBrowser {
    */
   passesFilters(spot) {
     const s = this.state;
-    if (s.region !== 'all' && spot.region !== s.region) return false;
     if (!spot.matchesQuery(s.query)) return false;
     if (s.types.size && !spot.categories.some((c) => s.types.has(c))) return false;
     if (s.location !== 'all' && spot.country !== s.location) return false;
@@ -284,9 +264,7 @@ class SpotBrowser {
     }
 
     if (s.minRating > 0 && (spot.rating == null || spot.rating < s.minRating)) return false;
-    if (s.serenity !== 'any' && spot.serenity !== s.serenity) return false;
-    if (s.atmosphere !== 'any' && spot.atmosphere !== s.atmosphere) return false;
-    if (s.interests.size && !spot.tags.some((t) => s.interests.has(t))) return false;
+    if (s.interests.size && !SpotBrowser.interestPool(spot).some((t) => s.interests.has(t))) return false;
 
     return true;
   }
@@ -295,7 +273,7 @@ class SpotBrowser {
     const s = this.state;
     let score = spot.rating ?? 0;
     if (spot.isLive) score += 0.5;
-    if (s.interests.size) score += spot.tags.filter((t) => s.interests.has(t)).length * 1.5;
+    if (s.interests.size) score += SpotBrowser.interestPool(spot).filter((t) => s.interests.has(t)).length * 1.5;
     if (s.types.size) score += spot.categories.filter((c) => s.types.has(c)).length * 0.5;
     return score;
   }
@@ -368,7 +346,7 @@ class SpotBrowser {
       const { lat, lon, cityLabel, countryLabel, region } = this.lastPlace;
       this.setLiveStatus(`<div class="spinner spinner--inline"></div> Refining live spots for "${cityLabel}"…`);
       try {
-        const spots = await this.liveClient.spotsFromPOIs(lat, lon, countryLabel, region, `live-${this.liveCounter++}`, this.state.types);
+        const spots = await this.liveClient.spotsFromPOIs(lat, lon, countryLabel, region, `live-${this.liveCounter++}`, this.state.types, cityLabel);
         const added = spots.length ? this.addLiveSpots(spots) : 0;
         const place = countryLabel ? `${cityLabel}, ${countryLabel}` : cityLabel;
         this.setLiveStatus(added
@@ -392,6 +370,19 @@ class SpotBrowser {
   resetAndRender() {
     this.visibleCount = this.pageSize;
     this.render();
+    this.fetchLiveForCurrentQuery();
+  }
+
+  /**
+   * Any filter/sort change, "Show Results", or "Load More" should surface
+   * live API results too — not just the debounced search-box typing. This
+   * reuses maybeFetchLiveSpots' own dedup cache, so calling it repeatedly
+   * (once per filter change) never re-fetches the same city twice.
+   */
+  fetchLiveForCurrentQuery() {
+    const searchInput = document.getElementById('browseSearch');
+    const query = searchInput ? searchInput.value.trim() : '';
+    if (query) this.maybeFetchLiveSpots(query);
   }
 
   clearFilters() {
@@ -401,18 +392,11 @@ class SpotBrowser {
     this.state.priceMin = null;
     this.state.priceMax = null;
     this.state.minRating = 0;
-    this.state.serenity = 'any';
-    this.state.atmosphere = 'any';
 
     document.querySelectorAll('#typeChips .chip').forEach((c) => c.classList.remove('is-active'));
     const locationSelect = document.getElementById('locationSelect');
     if (locationSelect) locationSelect.value = '';
     document.querySelectorAll('#interestChips .chip').forEach((c) => c.classList.remove('is-active'));
-    ['serenityChips', 'atmosphereChips'].forEach((id) => {
-      const group = document.getElementById(id);
-      if (!group) return;
-      group.querySelectorAll('.chip').forEach((c, i) => c.classList.toggle('is-active', i === 0));
-    });
     const ratingSlider = document.getElementById('ratingSlider');
     const ratingValueEl = document.getElementById('ratingValue');
     if (ratingSlider) ratingSlider.value = '0';
@@ -437,7 +421,7 @@ class SpotBrowser {
       remove: () => { s.types.delete(t); document.querySelector(`#typeChips .chip[data-value="${t}"]`)?.classList.remove('is-active'); this.onTypesChanged(); },
     }));
     s.interests.forEach((t) => pills.push({
-      label: t.replace('-', ' '),
+      label: SpotBrowser.interestLabel(t),
       remove: () => { s.interests.delete(t); document.querySelector(`#interestChips .chip[data-value="${t}"]`)?.classList.remove('is-active'); this.resetAndRender(); },
     }));
     if (s.location !== 'all') pills.push({
@@ -452,14 +436,6 @@ class SpotBrowser {
         if (slider) slider.value = '0'; if (label) label.textContent = 'Any';
         this.resetAndRender();
       },
-    });
-    if (s.serenity !== 'any') pills.push({
-      label: SpotBrowser.SERENITY_LABELS[s.serenity] || s.serenity,
-      remove: () => { s.serenity = 'any'; document.querySelectorAll('#serenityChips .chip').forEach((c, i) => c.classList.toggle('is-active', i === 0)); this.resetAndRender(); },
-    });
-    if (s.atmosphere !== 'any') pills.push({
-      label: SpotBrowser.ATMOSPHERE_LABELS[s.atmosphere] || s.atmosphere,
-      remove: () => { s.atmosphere = 'any'; document.querySelectorAll('#atmosphereChips .chip').forEach((c, i) => c.classList.toggle('is-active', i === 0)); this.resetAndRender(); },
     });
     if (s.priceMin !== null || s.priceMax !== null) pills.push({
       label: `$${s.priceMin ?? 0}–${s.priceMax ?? '∞'}`,

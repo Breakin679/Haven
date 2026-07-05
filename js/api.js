@@ -74,11 +74,12 @@ class LiveSpotClient {
     return null;
   }
 
-  toLiveSpot(poi, country, region, id, lat, lon) {
+  toLiveSpot(poi, country, region, id, lat, lon, city) {
     return new LiveSpot({
       id,
       name: poi.name,
       country,
+      city,
       region,
       osmCategory: poi.category,
       seed: `live-${poi.name}`.replace(/\s+/g, '-').toLowerCase(),
@@ -88,13 +89,13 @@ class LiveSpotClient {
   }
 
   /** Reusable on its own (no geocoding) so a Type-filter change can re-query the *same* coordinates with a narrower/broader tag set. */
-  async spotsFromPOIs(lat, lon, countryLabel, region, idPrefix, types) {
+  async spotsFromPOIs(lat, lon, countryLabel, region, idPrefix, types, cityLabel) {
     const elements = await this.fetchPOIs(lat, lon, types);
     return elements
       .map((el, i) => {
         const category = this.classify(el.tags);
         if (!category) return null;
-        return this.toLiveSpot({ name: el.tags.name, category }, countryLabel, region, `${idPrefix}-${i}`, lat, lon);
+        return this.toLiveSpot({ name: el.tags.name, category }, countryLabel, region, `${idPrefix}-${i}`, lat, lon, cityLabel);
       })
       .filter(Boolean);
   }
@@ -114,16 +115,17 @@ class LiveSpotClient {
       const region = place.address?.country_code === 'lb' ? 'local' : 'global';
       const lat = parseFloat(place.lat);
       const lon = parseFloat(place.lon);
-      const spots = await this.spotsFromPOIs(lat, lon, countryLabel, region, idPrefix, types);
+      const cityLabel = place.display_name?.split(',')[0] || cityName;
+      const spots = await this.spotsFromPOIs(lat, lon, countryLabel, region, idPrefix, types, cityLabel);
 
-      return { spots, cityLabel: place.display_name?.split(',')[0] || cityName, countryLabel, sample: false, lat, lon, region };
+      return { spots, cityLabel, countryLabel, sample: false, lat, lon, region };
     } catch (err) {
       const sample = LiveSpotClient.sampleData(cityName);
       if (!sample) {
         throw new Error('Couldn\u2019t reach the live map service right now. Try again shortly, or search Beirut, Santorini, Kyoto, or Marrakech.');
       }
       return {
-        spots: sample.pois.map((poi, i) => this.toLiveSpot(poi, sample.country, sample.region, `${idPrefix}-${i}`, null, null)),
+        spots: sample.pois.map((poi, i) => this.toLiveSpot(poi, sample.country, sample.region, `${idPrefix}-${i}`, null, null, sample.cityLabel)),
         cityLabel: sample.cityLabel,
         countryLabel: sample.country,
         sample: true,

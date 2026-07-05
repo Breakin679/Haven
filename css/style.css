@@ -1675,3 +1675,77 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .details__price { font-family: var(--font-display); font-size: 1.7rem; color: var(--ink); margin-top: 0.3rem; }
 
 .details__price-note { font-size: 0.75rem; color: #8a8f84; margin: 1rem 0 0; line-height: 1.5; }
+/* =========================================================
+   SPOT ACTION MODAL — "Request This Spot" / "Report an Issue"
+   ========================================================= */
+
+body.spot-modal-open { overflow: hidden; }
+
+.spot-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 38, 38, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.spot-modal-overlay.is-open { opacity: 1; pointer-events: auto; }
+
+.spot-modal {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  background: var(--white);
+  border-radius: 16px;
+  box-shadow: 0 30px 60px -20px rgba(9, 38, 38, 0.45);
+  padding: 2rem 2rem 1.75rem;
+  transform: translateY(10px) scale(0.98);
+  transition: transform 0.18s ease;
+}
+
+.spot-modal-overlay.is-open .spot-modal { transform: translateY(0) scale(1); }
+
+.spot-modal__close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--sand-deep);
+  background: var(--sand);
+  color: var(--charcoal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.spot-modal__close:hover { background: var(--sand-deep); }
+
+.spot-modal__body h3 {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--ink);
+  margin: 0.35rem 0 0.6rem;
+}
+
+.spot-modal__lede { font-size: 0.88rem; color: #4b514a; margin: 0 0 1.25rem; line-height: 1.5; }
+
+.spot-modal__fallback { font-size: 0.8rem; color: #8a8f84; text-align: center; margin: 1.1rem 0 0; }
+.spot-modal__fallback a { color: var(--ink); font-weight: 600; }
+
+.spot-modal__success { text-align: center; padding: 0.5rem 0 0; }
+.spot-modal__success i { font-size: 2.4rem; color: var(--sage); }
+.spot-modal__success h3 { margin-top: 0.75rem; }
+.spot-modal__success p { font-size: 0.9rem; color: #4b514a; line-height: 1.55; margin: 0 0 1.5rem; }

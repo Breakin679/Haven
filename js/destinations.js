@@ -5,10 +5,11 @@
  * location) all have real fields to work against instead of guesses.
  */
 class Destination {
-  constructor({ id, name, country, code, region, categories, price, priceUnit, rating, serenity, atmosphere, tags, blurb, seed, isLive, lat, lon }) {
+  constructor({ id, name, country, code, region, categories, price, priceUnit, rating, serenity, atmosphere, tags, blurb, seed, isLive, lat, lon, city }) {
     this.id = id;
     this.name = name;
     this.country = country;
+    this.city = city || null;         // e.g. "Beirut" — set for live spots so a city search still matches them
     this.code = code;                 // short postal-style location code, e.g. "GR · SAN"
     this.region = region;             // 'local' | 'global'
     this.categories = categories;     // e.g. ['wedding', 'honeymoon', 'couples']
@@ -56,7 +57,7 @@ class Destination {
 
   matchesQuery(query) {
     if (!query) return true;
-    const haystack = `${this.name} ${this.country}`.toLowerCase();
+    const haystack = `${this.name} ${this.city || ''} ${this.country}`.toLowerCase();
     return haystack.includes(query);
   }
 
@@ -78,7 +79,7 @@ class Destination {
         <div class="spot-card__perforation"></div>
         <div class="spot-card__body">
           <h3 class="spot-card__title">${this.name}</h3>
-          <div class="spot-card__loc">${this.code} · ${this.country}</div>
+          <div class="spot-card__loc">${this.city ? `${this.city} · ` : (this.code ? `${this.code} · ` : '')}${this.country}</div>
           <div class="spot-card__meta">
             <span><i class="bi bi-moon-stars"></i> ${this.serenityLabel}</span>
             <span><i class="bi bi-palette"></i> ${this.atmosphereLabel}</span>
@@ -112,12 +113,13 @@ class Destination {
  *    null would silently fail every Price/Rating filter forever.
  */
 class LiveSpot extends Destination {
-  constructor({ id, name, country, region, osmCategory, seed, lat, lon }) {
+  constructor({ id, name, country, city, region, osmCategory, seed, lat, lon }) {
     const traits = LiveSpot.inferTraits(osmCategory, name);
     super({
       id,
       name,
       country,
+      city,
       code: 'LIVE',
       region,
       categories: traits.categories,
