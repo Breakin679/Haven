@@ -90,7 +90,7 @@ class TestimonialCarousel {
 
     this.slides = [
       new QuoteTestimonial({
-        quote: 'We looked at four different palaces before finding Beiteddine on Haven. The listing had real photos and pricing — no back-and-forth needed to know it was the one.',
+        quote: 'We looked at four different palaces before finding Beiteddine on Haven. The listing had real photos and pricing, no back and forth needed to know it was the one.',
         name: 'Layla & Karim',
         role: 'Married at Beiteddine Palace',
       }),
@@ -102,7 +102,7 @@ class TestimonialCarousel {
         statLabel: 'From search to booked',
       }),
       new MinimalTestimonial({
-        quote: 'As a planner I source venues for a living. Haven is the first place I check now — the budget filter alone saves me an hour per client.',
+        quote: 'As a planner I source venues for a living. Haven is the first place I check now. The budget filter alone saves me an hour per client.',
         name: 'Nadine R.',
         role: 'Wedding planner',
       }),

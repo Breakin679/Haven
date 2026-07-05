@@ -141,8 +141,8 @@ class SpotActionModal {
     await new Promise((resolve) => setTimeout(resolve, 700));
 
     const successText = this.mode === 'request'
-      ? `Your request for <strong>${this.spot.name}</strong> has been sent. Haven doesn't have live booking yet, so this is a demo confirmation — in production our team would follow up by email.`
-      : `Thanks for flagging <strong>${this.spot.name}</strong>. Haven doesn't have a database connected yet, so this report isn't actually saved — but this is exactly how it will work once it is.`;
+      ? `Your request for <strong>${this.spot.name}</strong> has been sent. Haven doesn't have live booking yet, so this is a demo confirmation. In production our team would follow up by email.`
+      : `Thanks for flagging <strong>${this.spot.name}</strong>. Haven doesn't have a database connected yet, so this report isn't actually saved. But this is exactly how it will work once it is.`;
 
     this.body.innerHTML = `
       <div class="spot-modal__success">
@@ -170,7 +170,7 @@ class DetailsPage {
     }
 
     this.spot = spot;
-    document.title = `${spot.name} — Haven`;
+    document.title = `${spot.name}, Haven`;
     this.render();
   }
 
@@ -183,7 +183,7 @@ class DetailsPage {
 
   static priceText(spot) { return spot.price != null ? `$${spot.price.toLocaleString()} / ${spot.priceUnit}` : 'Price on request'; }
 
-  static ratingText(spot) { return spot.rating != null ? `★ ${spot.rating.toFixed(1)}` : 'New — not yet rated'; }
+  static ratingText(spot) { return spot.rating != null ? `★ ${spot.rating.toFixed(1)}` : 'New, not yet rated'; }
 
   static serenityText(spot) { return { high: 'Quiet', medium: 'Moderate', low: 'Lively' }[spot.serenity] || 'Unknown'; }
 
@@ -244,7 +244,7 @@ class DetailsPage {
 
   renderNotFound() {
     const liveHint = window.location.search.includes('live-')
-      ? 'Live spots only stick around for the session you searched them in — try searching again from Discover.'
+      ? 'Live spots only stick around for the session you searched them in. Try searching again from Discover.'
       : 'It may have been a bad or outdated link.';
 
     this.container.innerHTML = `

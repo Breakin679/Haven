@@ -278,7 +278,7 @@ class DestinationCatalog {
     const spots = this.filteredSpots;
     this.track.innerHTML = spots.length
       ? spots.map((s) => s.toCardHTML()).join('')
-      : `<div class="spot-carousel__item"><p>No spots match this view yet — check back soon.</p></div>`;
+      : `<div class="spot-carousel__item"><p>No spots match this view yet. Check back soon.</p></div>`;
 
     this.carousel = new Carousel({
       viewport: this.viewport,

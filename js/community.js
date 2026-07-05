@@ -101,12 +101,12 @@ document.addEventListener('DOMContentLoaded', () => {
   new VenueSubmissionForm({
     formSelector: '#venueForm',
     successSelector: '#venueSuccess',
-    successMessage: 'Thanks — your venue was recorded for this demo. (No database is connected yet, so nothing was actually saved.)',
+    successMessage: 'Thanks. Your venue was recorded for this demo. (No database is connected yet, so nothing was actually saved.)',
   });
 
   new SubmittableForm({
     formSelector: '#contactForm',
     successSelector: '#contactSuccess',
-    successMessage: 'Thanks for reaching out — in a live version, our team would reply within a day or two.',
+    successMessage: 'Thanks for reaching out. In a live version, our team would reply within a day or two.',
   });
 });

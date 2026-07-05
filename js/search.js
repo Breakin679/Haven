@@ -332,7 +332,7 @@ class SpotBrowser {
       const added = this.addLiveSpots(spots);
       if (!added) { this.setLiveStatus(''); return; }
       const place = countryLabel ? `${cityLabel}, ${countryLabel}` : cityLabel;
-      const sampleNote = sample ? ' (sample data — live network calls are blocked in this preview)' : '';
+      const sampleNote = sample ? ' (sample data. Live network calls are blocked in this preview)' : '';
       this.setLiveStatus(`<i class="bi bi-broadcast"></i> Added ${added} live spot${added === 1 ? '' : 's'} for ${place}${sampleNote}.`);
     } catch (err) {
       this.setLiveStatus('');
@@ -463,7 +463,7 @@ class SpotBrowser {
 
     this.grid.innerHTML = visible.length
       ? visible.map((spot) => spot.toGridHTML()).join('')
-      : `<div class="state-message"><i class="bi bi-compass"></i> No spots match those filters yet — try widening your search.</div>`;
+      : `<div class="state-message"><i class="bi bi-compass"></i> No spots match those filters yet. Try widening your search.</div>`;
 
     const badge = document.getElementById('filtersBadge');
     if (badge) {
