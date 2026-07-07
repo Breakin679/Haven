@@ -10,7 +10,7 @@ A spot-finder web app for weddings, honeymoons, and vacations — a curated loca
 
 ## Live Demo & Repository
 
-- **Live URL:** *
+- **Live URL:** https://breakin679.github.io/Haven/
 - **Repository:** (https://github.com/Breakin679/Haven.git)
 
 ---
@@ -41,6 +41,7 @@ The site is four pages: a home page with an auto-rotating showcase and testimoni
 
 - `Nominatim` turns a typed city name into coordinates and a bounding box.
 - `Overpass` is then queried for nearby `tourism`, `historic`, `leisure`, and `natural` nodes within a radius derived from that bounding box , this radius was originally a bug).
+- `WeatherAPI (Key-Authorized)` Securely integrated using token `a5825edd997845d4960190952260507` to render live structural weather blocks for selected destination profiles with intelligent geographic fallback resolution.
 
 
 ## Custom Requirement
@@ -105,6 +106,7 @@ What it was used for
 
 **Claude** (this conversation)
 Primary development partner — architecture, all HTML/CSS/JS, iterative design and bug fixes, this README
+Claude chat link: https://claude.ai/share/f7a4275b-956f-4851-9464-df75b454c4e6
 
 **Cursor**
 Technical last-resort help: line-level code review that caught bugs Claude's own testing had missed (see below)
@@ -120,7 +122,6 @@ Small clarifying questions during development (no code generation kept from it, 
 
 **Claude — mid-project data model overhaul:**
 
-Claude chat link: https://claude.ai/share/f7a4275b-956f-4851-9464-df75b454c4e6
 
 > "I want the following fixes: ... For filters i need... Price (actual prices not high-moderate-...), Type (wedding, Vacation, honeymoon, Couples, adventure, Camping...) it can be multiple ones, Location, Serenity, Atmosphere... Feel free to remake the whole search page if you think its necessary. For API look into these and choose the best one for the filters i gave: Amadeus Self-Service API or the ones presented in the project description. And if you find a better online and free one choose it"
 
